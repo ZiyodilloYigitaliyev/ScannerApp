@@ -1,9 +1,10 @@
 # app/config.py
 from pydantic import BaseSettings
-
+from dotenv import load_dotenv
+import os
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql://postgres:admin@localhost/postgres"
-    SECRET_KEY: str = "qwst23$hfgrt@ldfs/sdkfjrt1d25h/hgfrtdew21jh/"
+    DATABASE_URL: str =  os.getenv("DATABASE_URL")
+    SECRET_KEY: str =  os.getenv("SECRET_KEY")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
