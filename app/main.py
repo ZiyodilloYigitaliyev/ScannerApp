@@ -4,7 +4,8 @@ import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
-
+from dotenv import load_dotenv
+import os
 
 app = FastAPI()
 # CORS middleware sozlamalari
