@@ -18,10 +18,10 @@ app.add_middleware(
 
 
 # S3 sozlamalari
-AWS_ACCESS_KEY = "AKIAX3DNHIRTBIWW4FU6"
-AWS_SECRET_KEY = "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"
-S3_BUCKET_NAME = "scan-app-uploads"
-S3_REGION = "eu-north-1" 
+AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")
+AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+S3_REGION = os.getenv("S3_REGION")
 
 # S3 clientni sozlash
 s3_client = boto3.client(
