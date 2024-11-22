@@ -32,12 +32,7 @@ s3_client = boto3.client(
     region_name=S3_REGION
 )
 def upload_file_to_s3(file, file_name):
-    """
-    Faylni S3 bucket'ga yuklash va URL'ni qaytarish
-    :param file: Yuklanadigan fayl obyekt
-    :param file_name: S3 bucket'dagi fayl nomi
-    :return: Yuklangan fayl URL manzili
-    """
+    
     try:
         # Faylni S3 bucket'ga yuklash
         s3_client.upload_fileobj(
@@ -60,11 +55,7 @@ def upload_file_to_s3(file, file_name):
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
-    """
-    API orqali faylni yuklash
-    :param file: Yuklanadigan fayl
-    :return: Yuklangan faylning URL manzili
-    """
+    
     # Fayl nomini aniqlash (UUID bilan unikallik)
     file_name = f"{uuid.uuid4()}-{file.filename}"
 
