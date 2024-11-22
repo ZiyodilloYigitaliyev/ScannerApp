@@ -18,7 +18,7 @@ app.add_middleware(
 )
 
 
-# S3 sozlamalari
+
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
