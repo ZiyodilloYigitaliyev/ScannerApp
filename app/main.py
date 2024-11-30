@@ -1,7 +1,7 @@
 # app/main.py
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from ..routers.uploadScan import router
+from app.routers.uploadScan import router
 
 import os
 
