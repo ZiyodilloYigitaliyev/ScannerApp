@@ -9,5 +9,5 @@ python-multipart
 uuid
 python-dotenv
 psycopg2-binary
-pydantic-settings>=2.0.0
+pydantic-settings
 gunicorn>=20.0.4

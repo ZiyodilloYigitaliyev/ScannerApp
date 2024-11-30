@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from pydantic_settings import BaseSettings
 
 
 class UploadedFileBase(BaseModel):
