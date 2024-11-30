@@ -11,3 +11,6 @@ python-dotenv
 psycopg2-binary
 pydantic-settings
 gunicorn>=20.0.4
+psycopg2-binary
+psycopg
+
