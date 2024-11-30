@@ -17,3 +17,12 @@ app.add_middleware(
 
 
 app.include_router(router,  prefix="/files", tags=["files"])
+
+@app.get("/")
+def read_root():
+    return {"message": "Start app"}
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
