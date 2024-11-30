@@ -2,9 +2,10 @@ fastapi
 uvicorn
 sqlalchemy
 pydantic
-passlib[bcrypt]
+python-decouple
 python-jose
 boto3 
 python-multipart
 uuid
 python-dotenv
+psycopg2-binary
