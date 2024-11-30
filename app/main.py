@@ -1,7 +1,7 @@
 # app/main.py
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers.uploadScan import router
+from ..routers.uploadScan import router
 
 import os
 
@@ -18,11 +18,3 @@ app.add_middleware(
 
 app.include_router(router,  prefix="/files", tags=["files"])
 
-@app.get("/")
-def read_root():
-    return {"message": "Start app"}
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
