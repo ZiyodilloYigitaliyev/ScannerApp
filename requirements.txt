@@ -13,4 +13,4 @@ pydantic-settings
 gunicorn
 psycopg2-binary
 psycopg
-
+asyncpg
