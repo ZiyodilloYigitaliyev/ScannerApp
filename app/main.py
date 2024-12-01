@@ -18,3 +18,6 @@ app.add_middleware(
 
 app.include_router(router,  prefix="/files", tags=["files"])
 
+@app.get("/")
+async def root():
+    return {"message": "Hello, Heroku!"}
