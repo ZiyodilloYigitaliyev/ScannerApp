@@ -6,3 +6,5 @@ graphene-django
 python-dotenv
 gunicorn
 psycopg2-binary
+graphene-file-upload
+graphene
