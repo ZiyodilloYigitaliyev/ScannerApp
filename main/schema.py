@@ -1,7 +1,6 @@
 import zipfile
-import os
 from io import BytesIO
-from django.conf.files.storage import default_storage
+from django.core.files.storage import default_storage
 from graphene import ObjectType, Mutation, String, Field
 from graphene_file_upload.scalars import Upload
 from .models import UploadedFile
@@ -18,17 +17,22 @@ class UploadZipMutation(Mutation):
             # Faylni RAM ga yuklash
             zip_file = zipfile.ZipFile(file)
 
+            # PDF fayllarini ZIP faylidan chiqarish va S3'ga yuklash
             for name in zip_file.namelist():
                 if name.endswith(".pdf"):
-                    # Har bir PDF ni AWS S3 ga yuklash
+                    # PDF faylini ochish
                     pdf_file = zip_file.open(name)
+
+                    # Faylni S3'ga yuklash
                     s3_path = f"pdf_files/{name}"
-                    s3_url = default_storage.save(s3_path, pdf_file)
+                    file_content = pdf_file.read()
+                    s3_url = default_storage.save(s3_path, BytesIO(file_content))  # Faylni S3'ga saqlash
 
                     # Ma'lumotni bazaga saqlash
                     UploadedFile.objects.create(name=name, s3_url=s3_url)
 
             return UploadZipMutation(success="true", message="Files uploaded successfully!")
+
         except Exception as e:
             return UploadZipMutation(success="false", message=str(e))
 

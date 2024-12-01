@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     # Apps:
     'main',
     # Installed apps:
+    'storages',
     "graphene_django",
 ]
 GRAPHENE = {
