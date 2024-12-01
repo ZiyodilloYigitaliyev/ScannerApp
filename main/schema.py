@@ -1,7 +1,7 @@
 import zipfile
 import os
 from io import BytesIO
-from django.core.files.storage import default_storage
+from django.conf.files.storage import default_storage
 from graphene import ObjectType, Mutation, String, Field
 from graphene_file_upload.scalars import Upload
 from .models import UploadedFile
