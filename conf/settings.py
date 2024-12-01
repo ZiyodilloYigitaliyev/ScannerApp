@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    # 'django.contrib.staticfiles',
+    'django.contrib.staticfiles',
     # Apps:
     'main',
     # Installed apps:
@@ -85,9 +85,8 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'conf.wsgi.application'
-
-
-# AWS S3 settings
+from .storage_backends import StaticStorage, PublicMediaStorage
+# AWS S3 sozlamalari
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_KEY")
 AWS_REGION_NAME = "eu-north-1"
@@ -99,19 +98,24 @@ AWS_DEFAULT_ACL = "public-read"
 # Media fayllar yo'li
 AWS_MEDIA_LOCATION = 'media'
 AWS_S3_OBJECT_PARAMETERS = {
-    'CacheControl': 'max-age=86400', 
+    'CacheControl': 'max-age=86400',  # Faylni kechiktirish
 }
 
-
-# STATIC fayllar uchun URL
+# Static fayllar uchun sozlamalar
 STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/static/"
 STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
-# MEDIA fayllarni S3'ga saqlash
+# Media fayllarni S3'ga saqlash
 MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
 DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3MediaStorage"
+
 # Static fayllar uchun maxsus joy
 AWS_STATIC_LOCATION = 'static'
+
+# Static fayllar va media fayllar orasidagi ajratish
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+
+
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

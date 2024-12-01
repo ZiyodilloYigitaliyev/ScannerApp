@@ -108,7 +108,9 @@ class UploadDocxView(APIView):
                             image = Image.open(BytesIO(image_data))
                             image_file = BytesIO()
                             image.save(image_file, format='PNG')
-                            question.image.save(f"{question.id}.png", ContentFile(image_file.getvalue()))
+
+                            # Faylni S3'ga yuklash
+                            question.image.save(f"{question.id}.png", ContentFile(image_file.getvalue()), save=False)
 
             return Response({"success": True, "message": "File processed successfully."}, status=status.HTTP_200_OK)
 
