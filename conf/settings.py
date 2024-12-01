@@ -85,36 +85,35 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'conf.wsgi.application'
-from .storage_backends import StaticStorage, PublicMediaStorage
-# AWS S3 sozlamalari
+
+
+# AWS S3 settings
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_KEY")
 AWS_REGION_NAME = "eu-north-1"
 AWS_STORAGE_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
 AWS_S3_SIGNATURE_VERSION = 's3v4'
-AWS_S3_FILE_OVERWRITE = False  # Faylni o'zgartirmaslik uchun
+AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = "public-read"
-# Media fayllar yo'li
-AWS_MEDIA_LOCATION = 'media'
-AWS_S3_OBJECT_PARAMETERS = {
-    'CacheControl': 'max-age=86400',  # Faylni kechiktirish
-}
 
-# Static fayllar uchun sozlamalar
+# Static and Media settings
 STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/static/"
 STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
-# Media fayllarni S3'ga saqlash
 MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
-DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3MediaStorage"
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
-# Static fayllar uchun maxsus joy
+# Static and Media locations in S3
 AWS_STATIC_LOCATION = 'static'
+AWS_MEDIA_LOCATION = 'media'
 
-# Static fayllar va media fayllar orasidagi ajratish
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
-
+# Heroku specific settings
+if os.getenv('USE_S3') == 'TRUE':
+    # Ensure STATIC_ROOT is set, as Heroku doesn't create local static folder.
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # for collectstatic command
+else:
+    STATIC_ROOT = '/tmp/staticfiles'  # Temporary path for local testing
 
 
 # Database
