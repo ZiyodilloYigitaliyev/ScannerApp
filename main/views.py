@@ -9,10 +9,13 @@ from rest_framework.views import APIView
 from .models import UploadedFile
 import os
 from django.conf import settings
-from .models import Question, Answer
+from .models import *
 from docx import Document
 from django.core.files.base import ContentFile
 from PIL import Image
+from rest_framework.parsers import FileUploadParser
+from django.core.files.storage import default_storage
+import docx
 class UploadZipView(APIView):
     permission_classes = [AllowAny]
 
@@ -69,50 +72,50 @@ class UploadZipView(APIView):
 
 
 
-class UploadDocxView(APIView):
+class UploadQuestionsView(APIView):
+    parser_classes = [FileUploadParser]
+
     def post(self, request, *args, **kwargs):
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'error': 'Fayl topilmadi'}, status=400)
+        
+        # Faylni vaqtinchalik saqlash
+        file_path = default_storage.save(f'temp/{file.name}', file)
+        
+        # Word faylni ochish
         try:
-            # Faylni olish
-            file = request.FILES['file']
-            doc = Document(file)
+            doc = docx.Document(file_path)
+            for table in doc.tables:
+                for row in table.rows:
+                    question_text = row.cells[0].text.strip()  # Savol matni
+                    correct_answer = None
+                    answers = {'A': '', 'B': '', 'C': '', 'D': ''}
 
-            # Faylni tahlil qilish
-            for paragraph in doc.paragraphs:
-                if paragraph.text.strip():  # Matn bo'sh bo'lmasligi kerak
-                    # Savol matnini olish
-                    question_text = paragraph.text.strip()
+                    for i, cell in enumerate(row.cells[1:]):  # Variantlarni o'qish
+                        text = cell.text.strip()
+                        if text.startswith('A)') or text.startswith('B)') or text.startswith('C)') or text.startswith('D)'):
+                            answer_key = text[0]  # Variant harfi (A, B, C, D)
+                            answers[answer_key] = text[2:].strip()  # Variant matni
 
-                    # Savol va variantlarni saqlash
-                    question = Question.objects.create(text=question_text, correct_answer="")
+                        # Qizil rangni aniqlash
+                        for run in cell.paragraphs[0].runs:
+                            if run.font.color.rgb == docx.shared.RGBColor(255, 0, 0):  # Qizil rang
+                                correct_answer = text[0]  # To'g'ri javob harfi (A, B, C yoki D)
 
-                    # Savolning javoblarini qo'shish
-                    answer_choices = []  # Javob variantlari ro'yxati
-
-                    for run in paragraph.runs:
-                        # To'g'ri javobni aniqlash (qizil rangda bo'lishi kutiladi)
-                        if run.font.color and run.font.color.rgb == (255, 0, 0):  # Qizil rang
-                            correct_answer = run.text.strip()
-                            question.correct_answer = correct_answer
-                        else:
-                            answer_choices.append(run.text.strip())
-
-                    # Javoblarni bazaga saqlash
-                    for answer in answer_choices:
-                        is_correct = (answer == question.correct_answer)
-                        Answer.objects.create(question=question, text=answer, is_correct=is_correct)
-
-                    # Rasmlar bilan ishlash
-                    for rel in doc.part.rels.values():
-                        if "image" in rel.target_ref:
-                            image_data = rel.target_part.blob
-                            image = Image.open(BytesIO(image_data))
-                            image_file = BytesIO()
-                            image.save(image_file, format='PNG')
-
-                            # Faylni S3'ga yuklash
-                            question.image.save(f"{question.id}.png", ContentFile(image_file.getvalue()), save=False)
-
-            return Response({"success": True, "message": "File processed successfully."}, status=status.HTTP_200_OK)
-
+                    # Modelga saqlash
+                    if question_text and correct_answer:
+                        Question.objects.create(
+                            text=question_text,
+                            correct_answer=correct_answer,
+                            answerA=answers.get('A', ''),
+                            answerB=answers.get('B', ''),
+                            answerC=answers.get('C', ''),
+                            answerD=answers.get('D', ''),
+                        )
+            return Response({'message': 'Savollar muvaffaqiyatli yuklandi!'})
         except Exception as e:
-            return Response({"success": False, "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': str(e)}, status=500)
+        finally:
+            # Vaqtinchalik faylni o'chirish
+            default_storage.delete(file_path)

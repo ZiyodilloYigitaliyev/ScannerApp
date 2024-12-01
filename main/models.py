@@ -11,16 +11,14 @@ class UploadedFile(models.Model):
 
 class Question(models.Model):
     text = models.TextField()  # Savol matni
-    correct_answer = models.CharField(max_length=255)  # To'g'ri javob
+    correct_answer = models.CharField(max_length=10)  # To'g'ri javob
+    answerA = models.CharField(max_length=10)
+    answerB = models.CharField(max_length=10)
+    answerC = models.CharField(max_length=10)
+    answerD = models.CharField(max_length=10)
     image = models.ImageField(upload_to='questions_images/', blank=True, null=True)  # Rasm (agar mavjud bo'lsa)
 
     def __str__(self):
         return self.text
 
-class Answer(models.Model):
-    question = models.ForeignKey(Question, related_name='answers', on_delete=models.CASCADE)
-    text = models.CharField(max_length=255)  # Javob matni
-    is_correct = models.BooleanField(default=False)  # To'g'ri javobni belgilash
 
-    def __str__(self):
-        return self.text
