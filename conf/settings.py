@@ -91,19 +91,20 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_KEY")
 AWS_STORAGE_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
 AWS_S3_SIGNATURE_VERSION = 's3v4'
+AWS_DEFAULT_ACL = "public-read"
 # STATIC fayllarni S3'ga yuklash
 AWS_S3_OBJECT_PARAMETERS = {
     'CacheControl': 'max-age=86400',  # Fayllar uchun keshni sozlash
 }
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'  # Fayllarni S3'ga saqlash
-STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'  # Static fayllarni S3'ga saqlash
+
 
 # STATIC fayllar uchun URL
-AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
 STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/static/"
+STATICFILES_STORAGE = "storages.backends.s3boto3.S3StaticStorage"
 
 # MEDIA fayllarni S3'ga saqlash
 MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
+DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3MediaStorage"
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
