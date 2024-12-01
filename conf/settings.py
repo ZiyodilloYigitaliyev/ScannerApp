@@ -45,9 +45,32 @@ INSTALLED_APPS = [
     'main',
     # Installed apps:
     'storages',
-    "graphene_django",
+    'rest_framework',
 ]
-
+REST_FRAMEWORK = {
+    # Token autentifikatsiya, kerak bo'lsa
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    # O'zgartirishlar uchun serializerlar (agar kerak bo'lsa)
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',  # Faqat autentifikatsiya qilingan foydalanuvchilar uchun
+    ],
+    # Quvvatlangan formatlar
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+    ],
+    # Maxsus viewsetlar va url konfiguratsiyasi uchun
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '10/minute',  # Boshqa sozlamalar kerak bo'lsa
+    },
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
