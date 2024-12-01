@@ -17,8 +17,13 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from main.views import *
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/upload/', UploadZipView.as_view(), name='upload_zip'),
+    path('api/upload-docx/', UploadDocxView.as_view(), name='upload_docx'),
 ]
+# Static va media fayllarni S3'dan olish
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

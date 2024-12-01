@@ -8,7 +8,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import UploadedFile
 import os
-
+from django.conf import settings
+from .models import Question, Answer
+from docx import Document
+from django.core.files.base import ContentFile
+from PIL import Image
 class UploadZipView(APIView):
     permission_classes = [AllowAny]
 
@@ -62,3 +66,51 @@ class UploadZipView(APIView):
 
         except Exception as e:
             return Response({"success": "false", "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class UploadDocxView(APIView):
+    def post(self, request, *args, **kwargs):
+        try:
+            # Faylni olish
+            file = request.FILES['file']
+            doc = Document(file)
+
+            # Faylni tahlil qilish
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():  # Matn bo'sh bo'lmasligi kerak
+                    # Savol matnini olish
+                    question_text = paragraph.text.strip()
+
+                    # Savol va variantlarni saqlash
+                    question = Question.objects.create(text=question_text, correct_answer="")
+
+                    # Savolning javoblarini qo'shish
+                    answer_choices = []  # Javob variantlari ro'yxati
+
+                    for run in paragraph.runs:
+                        # To'g'ri javobni aniqlash (qizil rangda bo'lishi kutiladi)
+                        if run.font.color and run.font.color.rgb == (255, 0, 0):  # Qizil rang
+                            correct_answer = run.text.strip()
+                            question.correct_answer = correct_answer
+                        else:
+                            answer_choices.append(run.text.strip())
+
+                    # Javoblarni bazaga saqlash
+                    for answer in answer_choices:
+                        is_correct = (answer == question.correct_answer)
+                        Answer.objects.create(question=question, text=answer, is_correct=is_correct)
+
+                    # Rasmlar bilan ishlash
+                    for rel in doc.part.rels.values():
+                        if "image" in rel.target_ref:
+                            image_data = rel.target_part.blob
+                            image = Image.open(BytesIO(image_data))
+                            image_file = BytesIO()
+                            image.save(image_file, format='PNG')
+                            question.image.save(f"{question.id}.png", ContentFile(image_file.getvalue()))
+
+            return Response({"success": True, "message": "File processed successfully."}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"success": False, "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
