@@ -47,9 +47,7 @@ INSTALLED_APPS = [
     'storages',
     "graphene_django",
 ]
-GRAPHENE = {
-    "SCHEMA": "conf.schema.schema",  # Bu sizning GraphQL sxemangizga ishora qiladi
-}
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -85,8 +83,20 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
+AWS_S3_SIGNATURE_VERSION = 's3v4'
+# STATIC fayllarni S3'ga yuklash
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',  # Fayllar uchun keshni sozlash
+}
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'  # Fayllarni S3'ga saqlash
+STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'  # Static fayllarni S3'ga saqlash
 
-DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+# STATIC fayllar uchun URL
+AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
+STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/static/"
+
+# MEDIA fayllarni S3'ga saqlash
+MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

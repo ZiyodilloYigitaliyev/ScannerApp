@@ -2,9 +2,7 @@ uvicorn
 boto3 
 uuid
 django-storages
-graphene-django
+djangorestframework
 python-dotenv
 gunicorn
 psycopg2-binary
-graphene-file-upload
-graphene
