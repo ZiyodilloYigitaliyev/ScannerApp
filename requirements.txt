@@ -14,3 +14,4 @@ gunicorn
 psycopg2-binary
 psycopg
 asyncpg
+databases

@@ -1,9 +1,11 @@
 # app/main.py
 from fastapi import FastAPI, File, UploadFile, HTTPException
+from .database import database, metadata, engine
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers.uploadScan import router
-
 import os
+
+metadata.create_all(bind=engine)
 
 app = FastAPI()
 # CORS middleware sozlamalari
