@@ -73,6 +73,7 @@ class UploadZipView(APIView):
 
 
 class UploadQuestionsView(APIView):
+    permission_classes = [AllowAny]
     parser_classes = [FileUploadParser]
 
     def post(self, request, *args, **kwargs):
