@@ -5,3 +5,4 @@ django-storages
 graphene-django
 python-dotenv
 gunicorn
+psycopg2-binary
