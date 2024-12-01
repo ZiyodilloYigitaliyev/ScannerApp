@@ -7,6 +7,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import UploadedFile
+import os
 
 class UploadZipView(APIView):
     permission_classes = [AllowAny]
@@ -30,12 +31,15 @@ class UploadZipView(APIView):
             # ZIP faylidan PDF fayllarini chiqarib olish
             for name in zip_file.namelist():
                 if name.endswith(".pdf"):
-                    # PDF faylini ochish
+                    # Faqat fayl nomini olish (papka tuzilmalarini tashlab yuborish)
+                    file_name = os.path.basename(name)
+
+                    # Faylni ochish
                     pdf_file = zip_file.open(name)
                     file_content = pdf_file.read()
 
-                    # S3'ga yuklash
-                    s3_path = f"pdf_files/{name}"
+                    # Faylni S3'ga yuklash
+                    s3_path = f"pdf_files/{file_name}"  # Papkalarni olib tashlaymiz
                     s3_client.put_object(
                         Bucket=settings.AWS_STORAGE_BUCKET_NAME,
                         Key=s3_path,
@@ -49,7 +53,7 @@ class UploadZipView(APIView):
                     uploaded_files.append(uploaded_file_url)
 
                     # Ma'lumotni bazaga saqlash
-                    UploadedFile.objects.create(name=name, s3_url=uploaded_file_url)
+                    UploadedFile.objects.create(name=file_name, s3_url=uploaded_file_url)
 
             return Response(
                 {"success": "true", "message": "Files uploaded successfully!", "uploaded_files": uploaded_files},
