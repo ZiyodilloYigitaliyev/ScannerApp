@@ -86,7 +86,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'conf.wsgi.application'
 # AWS S3 settings
-USE_S3 = os.getenv('USE_S3') == 'TRUE'
+USE_S3 = os.getenv('USE_S3') == 'FALSE'
 
 if USE_S3:
     # aws settings
