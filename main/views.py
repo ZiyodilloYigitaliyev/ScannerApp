@@ -2,12 +2,13 @@ import zipfile
 from io import BytesIO
 from django.core.files.storage import default_storage
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import UploadedFile
 
 class UploadZipView(APIView):
-
+    permission_classes = [AllowAny]
     def post(self, request, *args, **kwargs):
         try:
             # ZIP faylini olish
