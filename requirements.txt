@@ -4,3 +4,4 @@ uuid
 django-storages
 graphene-django
 python-dotenv
+gunicorn

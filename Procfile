@@ -1,1 +1,2 @@
+web: gunicorn conf.wsgi
 
