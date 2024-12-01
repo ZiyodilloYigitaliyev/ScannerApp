@@ -24,6 +24,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/upload/', UploadZipView.as_view(), name='upload_zip'),
     path('api/upload-docx/', UploadDocxView.as_view(), name='upload_docx'),
-]
+]+ static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 # Static va media fayllarni S3'dan olish
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
