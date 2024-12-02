@@ -16,6 +16,7 @@ from PIL import Image
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.files.storage import default_storage
 import docx
+from .serializers import QuestionSerializer
 class UploadZipView(APIView):
     permission_classes = [AllowAny]
 
@@ -87,7 +88,7 @@ class UploadQuestionsView(APIView):
         try:
             # Word faylni ochish
             doc = docx.Document(file_path)
-            questions = []  # Saqlash uchun savollar ro'yxati
+            questions = []  # Savollarni yig'ish
 
             question_text = None
             answers = []
@@ -119,16 +120,16 @@ class UploadQuestionsView(APIView):
                 elif text[0] in 'ABCD':  # Javob variantlari
                     try:
                         answer_letter = text[0]
-                        answer_text = text[2:].strip()[:10]
+                        answer_text = text[2:].strip()[:10]  # Javob matnini cheklash
 
                         # To'g'ri javobni aniqlash
                         for run in para.runs:
                             if run.font.color and run.font.color.rgb == docx.shared.RGBColor(255, 0, 0):
                                 correct_answer = answer_letter
 
-                        answers.append
+                        answers.append({'letter': answer_letter, 'text': answer_text})
                     except IndexError:
-                        continue  # Noto'g'ri formatlangan qatorni o'tkazib yuborish
+                        continue  # Noto'g'ri formatlangan qatorlarni o'tkazib yuborish
 
             # Oxirgi savolni saqlash
             if question_text and correct_answer and len(answers) == 4:
@@ -145,7 +146,7 @@ class UploadQuestionsView(APIView):
 
             # Savollarni bazaga saqlash
             Question.objects.bulk_create(questions)
-            return Response({'message': 'Savollar muvaffaqiyatli yuklandi!'}, status=201)
+            return Response({'message': 'Savollar muvaffaqiyatli yuklandi!', 'count': len(questions)}, status=201)
 
         except Exception as e:
             return Response({'error': str(e)}, status=500)
