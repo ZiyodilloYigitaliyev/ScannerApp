@@ -13,7 +13,7 @@ from .models import *
 from docx import Document
 from django.core.files.base import ContentFile
 from PIL import Image
-from rest_framework.parsers import FileUploadParser
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.files.storage import default_storage
 import docx
 class UploadZipView(APIView):
@@ -74,7 +74,7 @@ class UploadZipView(APIView):
 
 class UploadQuestionsView(APIView):
     permission_classes = [AllowAny]
-    parser_classes = [FileUploadParser]
+    parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, *args, **kwargs):
         file = request.FILES.get('file')
