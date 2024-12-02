@@ -119,14 +119,14 @@ class UploadQuestionsView(APIView):
                 elif text[0] in 'ABCD':  # Javob variantlari
                     try:
                         answer_letter = text[0]
-                        answer_text = text[2:].strip()
+                        answer_text = text[2:].strip()[:10]
 
                         # To'g'ri javobni aniqlash
                         for run in para.runs:
                             if run.font.color and run.font.color.rgb == docx.shared.RGBColor(255, 0, 0):
                                 correct_answer = answer_letter
 
-                        answers.append({'letter': answer_letter, 'text': answer_text})
+                        answers.append
                     except IndexError:
                         continue  # Noto'g'ri formatlangan qatorni o'tkazib yuborish
 
