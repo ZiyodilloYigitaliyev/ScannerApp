@@ -80,41 +80,51 @@ class UploadQuestionsView(APIView):
         file = request.FILES.get('file')
         if not file:
             return Response({'error': 'Fayl topilmadi'}, status=400)
-        
+
         # Faylni vaqtinchalik saqlash
         file_path = default_storage.save(f'temp/{file.name}', file)
-        
-        # Word faylni ochish
+
         try:
+            # Word faylni ochish
             doc = docx.Document(file_path)
-            for table in doc.tables:
-                for row in table.rows:
-                    question_text = row.cells[0].text.strip()  # Savol matni
+            questions = []  # Yangi savollarni yig'ish uchun
+
+            for para in doc.paragraphs:
+                text = para.text.strip()
+                if not text:
+                    continue  # Bo'sh qatorlarni o'tkazib yuborish
+
+                if text[0].isdigit() and '.' in text:  # Savol boshlandi
+                    question_text = text.split('.', 1)[1].strip()
+                    answers = []
                     correct_answer = None
-                    answers = {'A': '', 'B': '', 'C': '', 'D': ''}
 
-                    for i, cell in enumerate(row.cells[1:]):  # Variantlarni o'qish
-                        text = cell.text.strip()
-                        if text.startswith('A)') or text.startswith('B)') or text.startswith('C)') or text.startswith('D)'):
-                            answer_key = text[0]  # Variant harfi (A, B, C, D)
-                            answers[answer_key] = text[2:].strip()  # Variant matni
+                elif text[0] in 'ABCD':  # Javob variantlari
+                    answer_letter = text[0]
+                    answer_text = text[2:].strip()
 
-                        # Qizil rangni aniqlash
-                        for run in cell.paragraphs[0].runs:
-                            if run.font.color and run.font.color.rgb == docx.shared.RGBColor(255, 0, 0):
-                                correct_answer = text[0]  # To'g'ri javob harfi (A, B, C yoki D)
+                    # To'g'ri javobni topish (qizil rangni aniqlash)
+                    for run in para.runs:
+                        if run.font.color and run.font.color.rgb == docx.shared.RGBColor(255, 0, 0):
+                            correct_answer = answer_letter
+                    answers.append({'letter': answer_letter, 'text': answer_text})
 
-                    # Modelga saqlash
-                    if question_text and correct_answer:
-                        Question.objects.create(
+                if correct_answer and answers:  # Savolni saqlashga tayyor
+                    questions.append(
+                        Question(
                             text=question_text,
                             correct_answer=correct_answer,
-                            answerA=answers.get('A', ''),
-                            answerB=answers.get('B', ''),
-                            answerC=answers.get('C', ''),
-                            answerD=answers.get('D', ''),
+                            answerA=answers[0]['text'],
+                            answerB=answers[1]['text'],
+                            answerC=answers[2]['text'],
+                            answerD=answers[3]['text'],
                         )
-            return Response({'message': 'Savollar muvaffaqiyatli yuklandi!'})
+                    )
+
+            # Ma'lumotlar bazasiga saqlash
+            Question.objects.bulk_create(questions)
+            return Response({'message': 'Savollar muvaffaqiyatli yuklandi!'}, status=201)
+
         except Exception as e:
             return Response({'error': str(e)}, status=500)
         finally:
