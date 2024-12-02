@@ -88,14 +88,20 @@ class UploadQuestionsView(APIView):
         try:
             # Word faylni ochish
             doc = docx.Document(file_path)
-            questions = []  # Savollarni yig'ish
+            questions = []  # Yig'ilgan savollar ro'yxati
 
             question_text = None
             answers = []
             correct_answer = None
+            question_images = []  # Rasmlar uchun
 
             for para in doc.paragraphs:
                 text = para.text.strip()
+
+                # Rasmni ajratib olish
+                if para.runs and para.runs[0].element.xpath('.//w:drawing'):
+                    question_images.append(para.runs[0].element)
+
                 if not text:
                     continue  # Bo'sh qatorlarni o'tkazib yuborish
 
@@ -112,24 +118,24 @@ class UploadQuestionsView(APIView):
                                 answerD=answers[3]['text'],
                             )
                         )
+                        question_images.clear()  # Har bir savol uchun rasmlar qayta boshlanadi
+
                     # Yangi savolni boshlash
                     question_text = text.split('.', 1)[1].strip()
                     answers = []
                     correct_answer = None
 
                 elif text[0] in 'ABCD':  # Javob variantlari
-                    try:
-                        answer_letter = text[0]
-                        answer_text = text[2:].strip()[:10]  # Javob matnini cheklash
+                    answer_letter = text[0]
+                    if answer_letter.islower():
+                        continue  # Kichik harfli javoblarni e'tiborsiz qoldirish
 
-                        # To'g'ri javobni aniqlash
-                        for run in para.runs:
-                            if run.font.color and run.font.color.rgb == docx.shared.RGBColor(255, 0, 0):
-                                correct_answer = answer_letter
+                    answer_text = text[2:].strip()[:10]  # Javobni 10 belgidan oshirmaslik
+                    for run in para.runs:
+                        if run.font.color and run.font.color.rgb == docx.shared.RGBColor(255, 0, 0):
+                            correct_answer = answer_letter
 
-                        answers.append({'letter': answer_letter, 'text': answer_text})
-                    except IndexError:
-                        continue  # Noto'g'ri formatlangan qatorlarni o'tkazib yuborish
+                    answers.append({'letter': answer_letter, 'text': answer_text})
 
             # Oxirgi savolni saqlash
             if question_text and correct_answer and len(answers) == 4:
@@ -144,8 +150,11 @@ class UploadQuestionsView(APIView):
                     )
                 )
 
-            # Savollarni bazaga saqlash
-            Question.objects.bulk_create(questions)
+            # Savollarni 10 tadan bo'lib saqlash
+            chunk_size = 10
+            for i in range(0, len(questions), chunk_size):
+                Question.objects.bulk_create(questions[i:i + chunk_size])
+
             return Response({'message': 'Savollar muvaffaqiyatli yuklandi!', 'count': len(questions)}, status=201)
 
         except Exception as e:
