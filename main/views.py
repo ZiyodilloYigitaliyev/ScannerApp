@@ -101,7 +101,7 @@ class UploadQuestionsView(APIView):
 
                         # Qizil rangni aniqlash
                         for run in cell.paragraphs[0].runs:
-                            if run.font.color.rgb == docx.shared.RGBColor(255, 0, 0):  # Qizil rang
+                            if run.font.color and run.font.color.rgb == docx.shared.RGBColor(255, 0, 0):
                                 correct_answer = text[0]  # To'g'ri javob harfi (A, B, C yoki D)
 
                     # Modelga saqlash
