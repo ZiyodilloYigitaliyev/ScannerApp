@@ -22,8 +22,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/upload/', UploadZipView.as_view(), name='upload_zip'),
-    path('api/upload-questions/', UploadQuestionsView.as_view(), name='upload-questions'),
+    path('api/upload/', UploadImageZipView.as_view(), name='upload_zip'),
 ]
 # Static va media fayllarni S3'dan olish
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
