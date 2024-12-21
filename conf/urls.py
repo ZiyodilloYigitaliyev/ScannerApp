@@ -15,14 +15,11 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
-from main.views import *
-from django.conf import settings
-from django.conf.urls.static import static
+from django.urls import path, include
+from main.views import ProcessZipFileView
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('upload/', UploadImageZipView.as_view(), name='upload_zip'),
+    path('upload/', ProcessZipFileView.as_view(), name='process-zip'),
 ]
-# Static va media fayllarni S3'dan olish
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

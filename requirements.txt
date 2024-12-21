@@ -1,3 +1,6 @@
+numpy
+opencv-python
+opencv-contrib-python
 uvicorn
 boto3 
 uuid
@@ -10,4 +13,4 @@ python-docx
 Pillow
 whitenoise
 dj-database-url
-python-decouple
+python-decouple    
