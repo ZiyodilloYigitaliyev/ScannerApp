@@ -95,8 +95,8 @@ AWS_DEFAULT_ACL = "public-read"
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-# DATABASE_URL = os.getenv("DATABASE_URL")
 
+DATABASE_URL = os.getenv("DATABASE_URL")
 # # PostgreSQL URL ni ajratib olish
 from urllib.parse import urlparse
 
