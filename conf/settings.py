@@ -98,28 +98,28 @@ AWS_DEFAULT_ACL = "public-read"
 # DATABASE_URL = os.getenv("DATABASE_URL")
 
 # # PostgreSQL URL ni ajratib olish
-# from urllib.parse import urlparse
+from urllib.parse import urlparse
 
-# url = urlparse(DATABASE_URL)
+url = urlparse(DATABASE_URL)
 
-# # PostgreSQL sozlamalari
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': url.path[1:],  # dbname
-#         'USER': url.username,  # user
-#         'PASSWORD': url.password,  # password
-#         'HOST': url.hostname,  # host
-#         'PORT': url.port,  # port (5432 bo'lishi kerak, lekin URL da bo'lishi mumkin)
-#     }
-# }
-
+# PostgreSQL sozlamalari
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',  # Bazaviy katalogda saqlanadi
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': url.path[1:],  # dbname
+        'USER': url.username,  # user
+        'PASSWORD': url.password,  # password
+        'HOST': url.hostname,  # host
+        'PORT': url.port,  # port (5432 bo'lishi kerak, lekin URL da bo'lishi mumkin)
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',  # Bazaviy katalogda saqlanadi
+#     }
+# }
 
 
 # Password validation
