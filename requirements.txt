@@ -14,3 +14,4 @@ Pillow
 whitenoise
 dj-database-url
 python-decouple    
+whitenoise
