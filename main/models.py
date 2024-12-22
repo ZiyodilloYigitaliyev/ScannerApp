@@ -1,6 +1,6 @@
 from django.db import models
 
-class ProcessedImage(models.Model):
+class ProcessedTest(models.Model):
     image_url = models.URLField()
     student_id = models.CharField(max_length=50)
     marked_answers = models.JSONField()
