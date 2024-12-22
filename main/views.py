@@ -10,7 +10,7 @@ from rest_framework import status
 from django.conf import settings
 from django.db import transaction
 from .serializers import ZipFileSerializer
-from .models import ProcessedImage
+from .models import ProcessedTest
 import shutil
 
 # S3 bilan ishlash uchun yordamchi funksiya
