@@ -120,7 +120,7 @@ class ProcessZipFileView(APIView):
                     s3_url = upload_to_s3(image_path, s3_key)
 
                     # Natijalarni bazaga yozish
-                    processed_image = ProcessedImage(
+                    processed_image = ProcessedTest(
                         student_id=student_id,
                         marked_answers=marked_answers,
                         image_url=s3_url  # Bazada URL saqlash
