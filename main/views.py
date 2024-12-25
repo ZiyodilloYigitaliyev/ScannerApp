@@ -11,6 +11,7 @@ from django.conf import settings
 from django.db import transaction
 from .serializers import ZipFileSerializer
 from .models import ProcessedTest
+from question.models import *   
 import shutil
 
 # S3 bilan ishlash uchun yordamchi funksiya
@@ -115,17 +116,36 @@ class ProcessZipFileView(APIView):
                 for image_path in image_files:
                     marked_answers = check_marked_circle(image_path, coordinates)
                     student_id = extract_id(image_path, id_coordinates)
+
+                    # `RandomData` modeli bilan solishtirish
+                    try:
+                        random_data = RandomData.objects.get(random_number=student_id)
+                    except RandomData.DoesNotExist:
+                        return Response({'error': f"Student ID {student_id} bazada topilmadi."}, 
+                                        status=status.HTTP_400_BAD_REQUEST)
+
+                    # Savollarni tekshirish
+                    for question_id, student_answer in marked_answers.items():
+                        try:
+                            true_answer = TrueAnswer.objects.get(
+                                random_number=random_data,
+                                question_id=question_id
+                            )
+                            is_correct = true_answer.true_answer == student_answer
+                        except TrueAnswer.DoesNotExist:
+                            is_correct = False
+
+                        # Natijalarni saqlash
+                        ProcessedTest.objects.create(
+                            student_id=student_id,
+                            question_id=question_id,
+                            student_answer=student_answer,
+                            is_correct=is_correct
+                        )
+
                     # Rasmlarni S3 ga yuklash
                     s3_key = f"images/answers/{os.path.basename(image_path)}"
                     s3_url = upload_to_s3(image_path, s3_key)
-
-                    # Natijalarni bazaga yozish
-                    processed_image = ProcessedTest(
-                        student_id=student_id,
-                        marked_answers=marked_answers,
-                        image_url=s3_url  # Bazada URL saqlash
-                    )
-                    processed_image.save()
 
                     results.append({
                         'student_id': student_id,
@@ -133,7 +153,7 @@ class ProcessZipFileView(APIView):
                         'image_url': s3_url,
                     })
 
-            return Response(status=status.HTTP_200_OK)
+            return Response({'results': results}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
