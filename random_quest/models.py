@@ -8,6 +8,7 @@ class Question(models.Model):
     options = models.TextField()
     true_answer = models.CharField(max_length=10, null=True, blank=True)
     image = models.ImageField(upload_to="question_images/", null=True, blank=True)
+    additionalValue = models.IntegerField(max_length=250)
 
     def __str__(self):
         return f"{self.category} - {self.subject}: {self.text[:50]}"

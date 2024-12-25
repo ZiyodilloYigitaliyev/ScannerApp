@@ -4,4 +4,4 @@ from .models import Question
 class QuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Question
-        fields = ["id", "category", "subject", "text", "options", "true_answer", "image"]
+        fields = '__all__'
