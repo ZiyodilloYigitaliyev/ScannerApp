@@ -7,6 +7,25 @@ import random
 
 # APIView
 class SaveRandomDataView(APIView):
+    def get(self, request, random_number=None, *args, **kwargs):
+        try:
+            # Agar random_number ko'rsatilgan bo'lsa, o'sha ma'lumotni qaytarish
+            if random_number:
+                random_data = RandomData.objects.get(random_number=random_number)
+                serializer = RandomDataSerializer(random_data)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            # Agar random_number ko'rsatilmagan bo'lsa, barcha ma'lumotlarni qaytarish
+            random_data = RandomData.objects.all()
+            serializer = RandomDataSerializer(random_data, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except RandomData.DoesNotExist:
+            return Response({'error': 'RandomData topilmadi'}, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
     def post(self, request, *args, **kwargs):
         try:
             # Kiruvchi ma'lumotlarni olish
