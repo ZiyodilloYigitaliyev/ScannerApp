@@ -2,12 +2,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Question
-from .serializers import QuestionSerializer
+from .serializers import DataSerializer
 import random
 
 class RandomizedQuestionsView(APIView):
     def post(self, request):
-        serializer = QuestionSerializer(data=request.data)
+        serializer = DataSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response({"message": "Ma'lumot muvaffaqiyatli saqlandi!"}, status=status.HTTP_201_CREATED)
