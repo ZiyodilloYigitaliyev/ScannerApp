@@ -11,37 +11,47 @@ class SaveRandomDataView(APIView):
         try:
             # Kiruvchi ma'lumotlarni olish
             incoming_data = request.data
-            additional_value = incoming_data.get('additionalValue')  # 4 xonali raqamlar soni
+            additional_value = incoming_data.get('additionalValue')  # 4 xonali random raqamlar soni
             data_items = incoming_data.get('data', [])  # Savollar ro‘yxati
 
             if not additional_value or not data_items:
-                return Response({'error': 'additionalValue yoki data yo\'q'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'additionalValue yoki data yo‘q'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # 4 xonali unikal raqamlar yaratish
+            # 4 xonali unikal random raqamlar yaratish
             random_numbers = self.generate_unique_random_numbers(additional_value)
 
-            # Savollarni random joylashtirish
-            randomized_data = random.sample(data_items, len(data_items))
+            all_random_data = []  # Saqlangan barcha random data ma’lumotlarini yig‘ish uchun
+            all_true_answers = []  # Saqlangan barcha true_answer yozuvlari uchun
 
-            # Bazaga saqlash: Har bir 4 xonali raqamga tegishli savollarni bog'lash
+            # RandomData va TrueAnswer ma'lumotlarini bazaga saqlash
             for random_number in random_numbers:
-                related_questions = randomized_data[:90]  # 90 ta savolni olish
-                randomized_data = randomized_data[90:]  # Keyingi savollar uchun ro‘yxatni yangilash
-
                 # RandomData yozuvi
-                random_data_instance = RandomData(random_number=random_number, data=related_questions)
+                random_data_instance = RandomData(random_number=random_number, data=data_items)
                 random_data_instance.save()
+                all_random_data.append(random_data_instance)
 
-                # Har bir savolga ID berish va true_answer'ni saqlash
-                for index, question in enumerate(related_questions, start=1):
-                    question_id = index  # 1 dan 90 gacha ID
-                    true_answer = question['true_answer']
+                # TrueAnswer yozuvlarini saqlash
+                for item in data_items:
+                    question_id = int(item['text'].split('.')[0])  # Savol ID
+                    true_answer = item['true_answer']
 
-                    # TrueAnswer yozuvi
-                    true_answer_instance = TrueAnswer(question_id=question_id, true_answer=true_answer)
+                    true_answer_instance = TrueAnswer(
+                        random_number=random_data_instance,  # ForeignKey orqali bog‘lash
+                        question_id=question_id,
+                        true_answer=true_answer
+                    )
                     true_answer_instance.save()
+                    all_true_answers.append(true_answer_instance)
 
-            return Response({'message': 'Ma\'lumotlar muvaffaqiyatli saqlandi'}, status=status.HTTP_201_CREATED)
+
+            # RandomData va TrueAnswer serializerlarini qo‘llash
+            random_data_serializer = RandomDataSerializer(all_random_data, many=True)
+            true_answer_serializer = TrueAnswerSerializer(all_true_answers, many=True)
+
+            return Response({
+                'random_data': random_data_serializer.data,
+                'true_answers': true_answer_serializer.data
+            }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -56,4 +66,3 @@ class SaveRandomDataView(APIView):
             if random_number not in random_numbers:
                 random_numbers.add(random_number)
         return list(random_numbers)
-
