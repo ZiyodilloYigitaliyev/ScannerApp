@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..random_quest.models import Question, Data
+from .models import Question, Data
 
 class QuestionSerializer(serializers.ModelSerializer):
     class Meta:
