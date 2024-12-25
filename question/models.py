@@ -2,7 +2,7 @@ from django.db import models
 
 # Model yaratish
 class RandomData(models.Model):
-    random_number = models.IntegerField(unique=True)
+    random_number = models.IntegerField()
     data = models.JSONField()
 
 class TrueAnswer(models.Model):
