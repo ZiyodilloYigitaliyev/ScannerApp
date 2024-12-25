@@ -5,7 +5,7 @@ from .models import Question
 from .serializers import QuestionSerializer
 import random
 
-class PostDataView(APIView):
+class RandomizedQuestionsView(APIView):
     def post(self, request):
         serializer = QuestionSerializer(data=request.data)
         if serializer.is_valid():
