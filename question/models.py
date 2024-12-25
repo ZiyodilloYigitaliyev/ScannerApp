@@ -7,7 +7,7 @@ class RandomData(models.Model):
 
 class TrueAnswer(models.Model):
     random_number = models.ForeignKey(RandomData, on_delete=models.CASCADE, related_name="true_answers")
-    question_id = models.IntegerField(unique=True)
+    question_id = models.IntegerField()
     true_answer = models.CharField(max_length=10)
 
     def __str__(self):
