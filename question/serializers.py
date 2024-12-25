@@ -1,25 +1,13 @@
-from rest_framework import serializers
-from .models import Question, Data
+from rest_framework.serializers import ModelSerializer
+from .models import RandomData, TrueAnswer
 
-class QuestionSerializer(serializers.ModelSerializer):
+# Serializer yaratish
+class RandomDataSerializer(ModelSerializer):
     class Meta:
-        model = Question
-        fields = ['id', 'category', 'subject', 'text', 'options', 'true_answer', 'image']
+        model = RandomData
+        fields = '__all__'
 
-
-class DataSerializer(serializers.ModelSerializer):
-    questions = QuestionSerializer(many=True)
-
+class TrueAnswerSerializer(ModelSerializer):
     class Meta:
-        model = Data
-        fields = ['additional_value', 'questions']
-
-    def create(self, validated_data):
-        questions_data = validated_data.pop('questions')
-        data_instance = Data.objects.create(**validated_data)
-
-        for question_data in questions_data:
-            question_instance, _ = Question.objects.get_or_create(**question_data)
-            data_instance.questions.add(question_instance)
-
-        return data_instance
+        model = TrueAnswer
+        fields = '__all__'
