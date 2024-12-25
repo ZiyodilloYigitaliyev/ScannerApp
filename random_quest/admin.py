@@ -1,5 +1,10 @@
 from django.contrib import admin
-from .models import *
+from .models import Data, Question
 
+@admin.register(Data)
+class DataAdmin(admin.ModelAdmin):
+    list_display = ('id', 'additional_value')
 
-admin.site.register(Question, Data)
+@admin.register(Question)
+class QuestionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'category', 'subject', 'text')
