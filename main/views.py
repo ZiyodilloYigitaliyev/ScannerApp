@@ -132,6 +132,9 @@ class ProcessZipFileView(APIView):
                                 question_id=question_id
                             )
                             is_correct = true_answer.true_answer == student_answer
+                        except TrueAnswer.MultipleObjectsReturned:
+                            return Response({'error': f"Bir nechta true_answer topildi: {question_id} uchun."}, 
+                                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                         except TrueAnswer.DoesNotExist:
                             is_correct = False
 
