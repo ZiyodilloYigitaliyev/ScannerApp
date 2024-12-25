@@ -8,7 +8,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 
 class DataSerializer(serializers.ModelSerializer):
-    questions = QuestionSerializer(many=True, source='questions')
+    questions = QuestionSerializer(many=True)
 
     class Meta:
         model = Data
