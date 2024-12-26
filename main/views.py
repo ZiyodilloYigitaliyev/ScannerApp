@@ -119,23 +119,23 @@ class ProcessZipFileView(APIView):
 
                     # `RandomData` modeli bilan solishtirish
                     try:
-                        random_data = RandomData.objects.get(random_number=student_id)
-                    except RandomData.DoesNotExist:
+                        random_data = QuestionList.objects.get(random_number=student_id)
+                    except QuestionList.DoesNotExist:
                         return Response({'error': f"Student ID {student_id} bazada topilmadi."}, 
                                         status=status.HTTP_400_BAD_REQUEST)
 
                     # Savollarni tekshirish
                     for question_id, student_answer in marked_answers.items():
                         try:
-                            true_answer = TrueAnswer.objects.get(
+                            true_answer = Question.objects.get(
                                 random_number=random_data,
                                 question_id=question_id
                             )
                             is_correct = true_answer.true_answer == student_answer
-                        except TrueAnswer.MultipleObjectsReturned:
+                        except Question.MultipleObjectsReturned:
                             return Response({'error': f"Bir nechta true_answer topildi: {question_id} uchun."}, 
                                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                        except TrueAnswer.DoesNotExist:
+                        except Question.DoesNotExist:
                             is_correct = False
 
                         # Natijalarni saqlash
