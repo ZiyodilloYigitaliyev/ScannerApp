@@ -9,7 +9,7 @@ import random
 class GenerateRandomQuestionsView(APIView):
     def post(self, request):
         try: 
-            print(request.data)
+            # print(request.data)
             questions_data = request.data            
             # Majburiy va boshqa fanlar
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
@@ -18,7 +18,7 @@ class GenerateRandomQuestionsView(APIView):
             fan_1 = questions_data.get('Fan_1', [])
             fan_2 = questions_data.get('Fan_2', [])
             additional_value = questions_data.get('additional_value')
-
+            print(f"additional_value: {additional_value}")
             final_lists = []
 
             for _ in range(additional_value):
