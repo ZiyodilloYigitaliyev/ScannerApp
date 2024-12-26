@@ -8,18 +8,15 @@ import random
 # APIView
 class GenerateRandomQuestionsView(APIView):
     def post(self, request):
-        try:
-            print(request)
-            # So'rovdan `additionalValue`ni olish
-            additional_value = request.data.get('additionalValue')
-            if not isinstance(additional_value, int) or additional_value <= 0:
-                return Response({"error": "additionalValue must be a positive integer"}, status=status.HTTP_400_BAD_REQUEST)
-            
+        try: 
             # `data` bo'limidagi ma'lumotlarni olish
             questions_data = request.data.get('data', {}).get('data', {})
             if not questions_data:
                 return Response({"error": "Invalid data format. 'data' is required."}, status=status.HTTP_400_BAD_REQUEST)
-            
+             # So'rovdan `additionalValue`ni olish
+            additional_value = request.data.get('additionalValue')
+            if not isinstance(additional_value, int) or additional_value <= 0:
+                return Response({"error": "additionalValue must be a positive integer"}, status=status.HTTP_400_BAD_REQUEST)
             # Majburiy va boshqa fanlar
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
             majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
