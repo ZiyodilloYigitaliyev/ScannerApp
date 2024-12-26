@@ -1,91 +1,75 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import RandomData, TrueAnswer
-from .serializers import RandomDataSerializer, TrueAnswerSerializer
+from .models import QuestionList, Question
+from .serializers import QuestionSerializer, QuestionListSerializer
 import random
 
 # APIView
-class SaveRandomDataView(APIView):
-    def get(self, request, random_number=None, *args, **kwargs):
+class GenerateRandomQuestionsView(APIView):
+    def post(self, request):
         try:
-            # Agar random_number ko'rsatilgan bo'lsa, o'sha ma'lumotni qaytarish
-            if random_number:
-                random_data = RandomData.objects.get(random_number=random_number)
-                serializer = RandomDataSerializer(random_data)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-
-            # Agar random_number ko'rsatilmagan bo'lsa, barcha ma'lumotlarni qaytarish
-            random_data = RandomData.objects.all()
-            serializer = RandomDataSerializer(random_data, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        except RandomData.DoesNotExist:
-            return Response({'error': 'RandomData topilmadi'}, status=status.HTTP_404_NOT_FOUND)
-
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            questions_data = request.data
             
-    def post(self, request, *args, **kwargs):
-        try:
-            # Kiruvchi ma'lumotlarni olish
-            incoming_data = request.data
-            additional_value = incoming_data.get('additionalValue')  # 4 xonali random raqamlar soni
-            data_items = incoming_data.get('data', [])  # Savollar ro‘yxati
+            # Majburiy va boshqa fanlar
+            majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
+            majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
+            majburiy_fan_3 = questions_data.get('Majburiy_Fan_3', [])
+            fan_1 = questions_data.get('Fan_1', [])
+            fan_2 = questions_data.get('Fan_2', [])
+            
+            # Qo'shimcha qiymat (listlar soni)
+            additional_value = questions_data.get('additional_value', 3)
 
-            if not additional_value or not data_items:
-                return Response({'error': 'additionalValue yoki data yo‘q'}, status=status.HTTP_400_BAD_REQUEST)
+            final_lists = []
 
-            # 4 xonali unikal random raqamlar yaratish
-            random_numbers = self.generate_unique_random_numbers(additional_value)
+            for _ in range(additional_value):
+                new_list = []
 
-            all_random_data = []  # Saqlangan barcha random data ma’lumotlarini yig‘ish uchun
-            all_true_answers = []  # Saqlangan barcha true_answer yozuvlari uchun
+                # Majburiy fanlardan 10 tadan tanlash
+                new_list.extend(self.get_random_items(majburiy_fan_1, 10))
+                new_list.extend(self.get_random_items(majburiy_fan_2, 10))
+                new_list.extend(self.get_random_items(majburiy_fan_3, 10))
 
-            # RandomData va TrueAnswer ma'lumotlarini bazaga saqlash
-            for random_number in random_numbers:
-                # Har bir random_number uchun savollarni tasodifiylashtirish
-                random.shuffle(data_items)
+                # Fanlardan 30 tadan tanlash
+                new_list.extend(self.get_random_items(fan_1, 30))
+                new_list.extend(self.get_random_items(fan_2, 30))
 
-                # RandomData yozuvi (Har bir random_number uchun 90 ta savol)
-                random_data_instance = RandomData(random_number=random_number, data=data_items[:90])
-                random_data_instance.save()
-                all_random_data.append(random_data_instance)
+                # Tasodifiy ID yaratish
+                list_id = random.randint(1000, 9999)
 
-                # TrueAnswer yozuvlarini saqlash
-                question_id = 1  # Har bir random_number uchun alohida question_id boshlash
-                for item in data_items[:90]:  # Faqat 90 ta savolni saqlaymiz
-                    true_answer = item['true_answer']
+                # Final listga qo'shish
+                final_lists.append({
+                    "list_id": list_id,
+                    "questions": new_list,
+                })
 
-                    true_answer_instance = TrueAnswer(
-                        random_number=random_data_instance,  # ForeignKey orqali bog‘lash
-                        question_id=question_id,  # Ketma-ket ID belgilash
-                        true_answer=true_answer
+                # Save to database
+                question_list = QuestionList.objects.create(list_id=list_id)
+                for question in new_list:
+                    Question.objects.create(
+                        list=question_list,
+                        question_id=question.get('id'),
+                        true_answer=question.get('true_answer', False)
                     )
-                    true_answer_instance.save()
-                    all_true_answers.append(true_answer_instance)
 
-                    question_id += 1  # Har bir savol uchun IDni oshirish
-
-            # RandomData va TrueAnswer serializerlarini qo‘llash
-            random_data_serializer = RandomDataSerializer(all_random_data, many=True)
-            true_answer_serializer = TrueAnswerSerializer(all_true_answers, many=True)
-
-            return Response({
-                'random_data': random_data_serializer.data,
-                'true_answers': true_answer_serializer.data
-            }, status=status.HTTP_201_CREATED)
-
+            return Response({"final_lists": final_lists}, status=status.HTTP_200_OK)
+        
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    def generate_unique_random_numbers(self, count):
-        """
-        Berilgan miqdordagi unikal random 4 xonali raqamlarni qaytaradi.
-        """
-        random_numbers = set()
-        while len(random_numbers) < count:
-            random_number = random.randint(1000, 9999)
-            if random_number not in random_numbers:
-                random_numbers.add(random_number)
-        return list(random_numbers)
+    @staticmethod
+    def get_random_items(source_list, count):
+        if not source_list:
+            return []
+
+        selected_indexes = set()
+        selected_items = []
+        
+        while len(selected_indexes) < count and len(selected_indexes) < len(source_list):
+            index = random.randint(0, len(source_list) - 1)
+            if index not in selected_indexes:
+                selected_indexes.add(index)
+                selected_items.append(source_list[index])
+
+        return selected_items
