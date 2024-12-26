@@ -36,9 +36,6 @@ class SaveRandomDataView(APIView):
             if not additional_value or not data_items:
                 return Response({'error': 'additionalValue yoki data yo‘q'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Savollarni tasodifiy tartibda joylash
-            random.shuffle(data_items)
-
             # 4 xonali unikal random raqamlar yaratish
             random_numbers = self.generate_unique_random_numbers(additional_value)
 
@@ -46,16 +43,18 @@ class SaveRandomDataView(APIView):
             all_true_answers = []  # Saqlangan barcha true_answer yozuvlari uchun
 
             # RandomData va TrueAnswer ma'lumotlarini bazaga saqlash
-            question_id = 1  # Savollarni ketma-ket tartibda ID berish uchun
-
             for random_number in random_numbers:
-                # RandomData yozuvi
-                random_data_instance = RandomData(random_number=random_number, data=data_items)
+                # Har bir random_number uchun savollarni tasodifiylashtirish
+                random.shuffle(data_items)
+
+                # RandomData yozuvi (Har bir random_number uchun 90 ta savol)
+                random_data_instance = RandomData(random_number=random_number, data=data_items[:90])
                 random_data_instance.save()
                 all_random_data.append(random_data_instance)
 
                 # TrueAnswer yozuvlarini saqlash
-                for i, item in enumerate(data_items[:90]):  # Faqat 90 ta savolni saqlaymiz
+                question_id = 1  # Har bir random_number uchun alohida question_id boshlash
+                for item in data_items[:90]:  # Faqat 90 ta savolni saqlaymiz
                     true_answer = item['true_answer']
 
                     true_answer_instance = TrueAnswer(
@@ -67,9 +66,6 @@ class SaveRandomDataView(APIView):
                     all_true_answers.append(true_answer_instance)
 
                     question_id += 1  # Har bir savol uchun IDni oshirish
-
-                    if question_id > 90:  # Agar 90 ta savol bo'lsa, IDni qayta boshlash
-                        question_id = 1
 
             # RandomData va TrueAnswer serializerlarini qo‘llash
             random_data_serializer = RandomDataSerializer(all_random_data, many=True)
