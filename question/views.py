@@ -9,6 +9,7 @@ import random
 class GenerateRandomQuestionsView(APIView):
     def post(self, request):
         try: 
+            print(request.data)
             questions_data = request.data            
             # Majburiy va boshqa fanlar
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
