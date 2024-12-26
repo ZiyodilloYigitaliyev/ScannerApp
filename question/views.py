@@ -9,9 +9,15 @@ import random
 class GenerateRandomQuestionsView(APIView):
     def post(self, request):
         try: 
-            questions_num = request.num
-            questions_data = request.data   
-            additional_value = questions_num.get('additional_value', 1)
+             # JSON ma'lumotni to'g'rilash
+            if isinstance(request.data, list):
+                # List ichidagi birinchi elementni olish
+                request_data = request.data[0]
+            else:
+                request_data = request.data
+            questions_num = request_data.get('num', {})
+            questions_data = request_data.get('data', {})   
+            additional_value = questions_num.get('additional_value')
             print(f"additional_value: {additional_value}")         
             # Majburiy va boshqa fanlar
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
@@ -62,10 +68,10 @@ class GenerateRandomQuestionsView(APIView):
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-@staticmethod
-def get_random_items(source_list, count):
-    if not source_list:
-        return []
-
-    count = min(count, len(source_list))  # Bu yerda count None bo'lsa xatolik yuzaga keladi.
-    return random.sample(source_list, count)
+    @staticmethod
+    def get_random_items(source_list, count):
+        if not source_list:
+            return []
+    
+        count = min(count, len(source_list))  # Bu yerda count None bo'lsa xatolik yuzaga keladi.
+        return random.sample(source_list, count)
