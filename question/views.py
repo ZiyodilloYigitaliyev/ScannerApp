@@ -36,15 +36,18 @@ class SaveRandomDataView(APIView):
             if not additional_value or not data_items:
                 return Response({'error': 'additionalValue yoki data yo‘q'}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Savollarni tasodifiy tartibda joylash
+            random.shuffle(data_items)
+
             # 4 xonali unikal random raqamlar yaratish
             random_numbers = self.generate_unique_random_numbers(additional_value)
 
             all_random_data = []  # Saqlangan barcha random data ma’lumotlarini yig‘ish uchun
             all_true_answers = []  # Saqlangan barcha true_answer yozuvlari uchun
 
+            # RandomData va TrueAnswer ma'lumotlarini bazaga saqlash
             question_id = 1  # Savollarni ketma-ket tartibda ID berish uchun
 
-            # RandomData va TrueAnswer ma'lumotlarini bazaga saqlash
             for random_number in random_numbers:
                 # RandomData yozuvi
                 random_data_instance = RandomData(random_number=random_number, data=data_items)
