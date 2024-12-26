@@ -8,8 +8,8 @@ import random
 # APIView
 class GenerateRandomQuestionsView(APIView):
     def post(self, request):
-        print(request)
         try:
+            print(request)
             # So'rovdan `additionalValue`ni olish
             additional_value = request.data.get('additionalValue')
             if not isinstance(additional_value, int) or additional_value <= 0:
