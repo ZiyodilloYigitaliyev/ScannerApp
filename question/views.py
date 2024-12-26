@@ -17,8 +17,7 @@ class GenerateRandomQuestionsView(APIView):
                 request_data = request.data
             questions_num = request_data.get('num', {})
             questions_data = request_data.get('data', {})   
-            additional_value = questions_num.get('additional_value')
-            print(f"additional_value: {additional_value}")         
+            additional_value = questions_num.get('additional_value')       
             # Majburiy va boshqa fanlar
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
             majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
@@ -56,7 +55,7 @@ class GenerateRandomQuestionsView(APIView):
                         Question.objects.create(
                             list=question_list,
                             question_id=question.get('id'),
-                            true_answer=question.get('true_answer', False)
+                            true_answer=question.get('true_answer', "")  # String qiymatni saqlash
                         )
                 except Exception as e:
                     print(f"Error during database save: {e}")
@@ -72,6 +71,6 @@ class GenerateRandomQuestionsView(APIView):
     def get_random_items(source_list, count):
         if not source_list:
             return []
-    
+
         count = min(count, len(source_list))  # Bu yerda count None bo'lsa xatolik yuzaga keladi.
         return random.sample(source_list, count)
