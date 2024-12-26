@@ -10,7 +10,7 @@ class GenerateRandomQuestionsView(APIView):
     def post(self, request):
         try:
             questions_data = request.data
-            
+            additional_value = request.additional_value
             # Majburiy va boshqa fanlar
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
             majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
@@ -19,7 +19,7 @@ class GenerateRandomQuestionsView(APIView):
             fan_2 = questions_data.get('Fan_2', [])
             
             # Qo'shimcha qiymat (listlar soni)
-            additional_value = questions_data.get('additional_value')
+            additional_value = additional_value.get('additional_value')
 
             final_lists = []
 
