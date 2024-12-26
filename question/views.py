@@ -9,8 +9,16 @@ import random
 class GenerateRandomQuestionsView(APIView):
     def post(self, request):
         try:
-            additional_value = request.additional_value
-            questions_data = request.data
+            # So'rovdan `additionalValue`ni olish
+            additional_value = request.data.get('additionalValue')
+            if not isinstance(additional_value, int) or additional_value <= 0:
+                return Response({"error": "additionalValue must be a positive integer"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # `data` bo'limidagi ma'lumotlarni olish
+            questions_data = request.data.get('data', {}).get('data', {})
+            if not questions_data:
+                return Response({"error": "Invalid data format. 'data' is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
             # Majburiy va boshqa fanlar
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
             majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
@@ -18,9 +26,6 @@ class GenerateRandomQuestionsView(APIView):
             fan_1 = questions_data.get('Fan_1', [])
             fan_2 = questions_data.get('Fan_2', [])
             
-            # Qo'shimcha qiymat (listlar soni)
-            additional_value = additional_value.get('additional_value')
-
             final_lists = []
 
             for _ in range(additional_value):
@@ -56,20 +61,13 @@ class GenerateRandomQuestionsView(APIView):
             return Response({"final_lists": final_lists}, status=status.HTTP_200_OK)
         
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
     @staticmethod
     def get_random_items(source_list, count):
         if not source_list:
             return []
 
-        selected_indexes = set()
-        selected_items = []
-        
-        while len(selected_indexes) < count and len(selected_indexes) < len(source_list):
-            index = random.randint(0, len(source_list) - 1)
-            if index not in selected_indexes:
-                selected_indexes.add(index)
-                selected_items.append(source_list[index])
-
-        return selected_items
+        # Elementlar sonini moslashtirish
+        count = min(count, len(source_list))
+        return random.sample(source_list, count)
