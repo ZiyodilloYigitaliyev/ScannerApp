@@ -8,6 +8,7 @@ import random
 # APIView
 class GenerateRandomQuestionsView(APIView):
     def post(self, request):
+        print(request)
         try:
             # So'rovdan `additionalValue`ni olish
             additional_value = request.data.get('additionalValue')
