@@ -19,7 +19,7 @@ class GenerateRandomQuestionsView(APIView):
             fan_2 = questions_data.get('Fan_2', [])
             
             # Qo'shimcha qiymat (listlar soni)
-            additional_value = questions_data.get('additional_value', 3)
+            additional_value = questions_data.get('additional_value')
 
             final_lists = []
 
