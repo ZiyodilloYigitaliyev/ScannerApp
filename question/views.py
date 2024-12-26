@@ -42,6 +42,8 @@ class SaveRandomDataView(APIView):
             all_random_data = []  # Saqlangan barcha random data ma’lumotlarini yig‘ish uchun
             all_true_answers = []  # Saqlangan barcha true_answer yozuvlari uchun
 
+            question_id = 1  # Savollarni ketma-ket tartibda ID berish uchun
+
             # RandomData va TrueAnswer ma'lumotlarini bazaga saqlash
             for random_number in random_numbers:
                 # RandomData yozuvi
@@ -51,17 +53,17 @@ class SaveRandomDataView(APIView):
 
                 # TrueAnswer yozuvlarini saqlash
                 for item in data_items:
-                    question_id = int(item['text'].split('.')[0])  # Savol ID
                     true_answer = item['true_answer']
 
                     true_answer_instance = TrueAnswer(
                         random_number=random_data_instance,  # ForeignKey orqali bog‘lash
-                        question_id=question_id,
+                        question_id=question_id,  # Ketma-ket ID belgilash
                         true_answer=true_answer
                     )
                     true_answer_instance.save()
                     all_true_answers.append(true_answer_instance)
 
+                    question_id += 1  # Har bir savol uchun IDni oshirish
 
             # RandomData va TrueAnswer serializerlarini qo‘llash
             random_data_serializer = RandomDataSerializer(all_random_data, many=True)
