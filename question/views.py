@@ -43,24 +43,28 @@ class GenerateRandomQuestionsView(APIView):
                 })
 
                 # Save to database
-                question_list = QuestionList.objects.create(list_id=list_id)
-                for question in new_list:
-                    Question.objects.create(
-                        list=question_list,
-                        question_id=question.get('id'),
-                        true_answer=question.get('true_answer', False)
-                    )
+                try:
+                    question_list = QuestionList.objects.create(list_id=list_id)
+                    for question in new_list:
+                        Question.objects.create(
+                            list=question_list,
+                            question_id=question.get('id'),
+                            true_answer=question.get('true_answer', False)
+                        )
+                except Exception as e:
+                    print(f"Error during database save: {e}")
+                    return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
+                                    
 
             return Response({"final_lists": final_lists}, status=status.HTTP_200_OK)
         
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-    @staticmethod
-    def get_random_items(source_list, count):
-        if not source_list:
-            return []
+@staticmethod
+def get_random_items(source_list, count):
+    if not source_list:
+        return []
 
-        # Elementlar sonini moslashtirish
-        count = min(count, len(source_list))
-        return random.sample(source_list, count)
+    count = min(count, len(source_list))  # Bu yerda count None bo'lsa xatolik yuzaga keladi.
+    return random.sample(source_list, count)
