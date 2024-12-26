@@ -52,7 +52,7 @@ class SaveRandomDataView(APIView):
                 all_random_data.append(random_data_instance)
 
                 # TrueAnswer yozuvlarini saqlash
-                for item in data_items:
+                for i, item in enumerate(data_items[:90]):  # Faqat 90 ta savolni saqlaymiz
                     true_answer = item['true_answer']
 
                     true_answer_instance = TrueAnswer(
@@ -64,6 +64,9 @@ class SaveRandomDataView(APIView):
                     all_true_answers.append(true_answer_instance)
 
                     question_id += 1  # Har bir savol uchun IDni oshirish
+
+                    if question_id > 90:  # Agar 90 ta savol bo'lsa, IDni qayta boshlash
+                        question_id = 1
 
             # RandomData va TrueAnswer serializerlarini qo‘llash
             random_data_serializer = RandomDataSerializer(all_random_data, many=True)
