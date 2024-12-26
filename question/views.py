@@ -16,7 +16,7 @@ class GenerateRandomQuestionsView(APIView):
             majburiy_fan_3 = questions_data.get('Majburiy_Fan_3', [])
             fan_1 = questions_data.get('Fan_1', [])
             fan_2 = questions_data.get('Fan_2', [])
-            additional_value = questions_data.get('additional_value')
+            additional_value = questions_data.get('additionalValue')
 
             final_lists = []
 
