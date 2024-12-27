@@ -28,16 +28,13 @@ class GenerateRandomQuestionsView(APIView):
             final_lists = []
 
             for _ in range(additional_value):
-                new_list = []
-
-                # Majburiy fanlardan 10 tadan tanlash
-                new_list.extend(self.get_random_items(majburiy_fan_1, 10))
-                new_list.extend(self.get_random_items(majburiy_fan_2, 10))
-                new_list.extend(self.get_random_items(majburiy_fan_3, 10))
-
-                # Fanlardan 30 tadan tanlash
-                new_list.extend(self.get_random_items(fan_1, 30))
-                new_list.extend(self.get_random_items(fan_2, 30))
+                new_list = {
+                    "Majburiy_Fan_1": self.get_random_items(majburiy_fan_1, 10),
+                    "Majburiy_Fan_2": self.get_random_items(majburiy_fan_2, 10),
+                    "Majburiy_Fan_3": self.get_random_items(majburiy_fan_3, 10),
+                    "Fan_1": self.get_random_items(fan_1, 30),
+                    "Fan_2": self.get_random_items(fan_2, 30),
+                }
 
                 # Tasodifiy ID yaratish
                 list_id = random.randint(1000, 9999)
@@ -51,12 +48,13 @@ class GenerateRandomQuestionsView(APIView):
                 # Save to database
                 try:
                     question_list = QuestionList.objects.create(list_id=list_id)
-                    for question in new_list:
-                        Question.objects.create(
-                            list=question_list,
-                            question_id=question.get('id'),
-                            true_answer=question.get('true_answer', "")  # String qiymatni saqlash
-                        )
+                    for category, questions in new_list.items():
+                        for question in questions:
+                            Question.objects.create(
+                                list=question_list,
+                                question_id=question.get('id'),
+                                true_answer=question.get('true_answer', "")  # String qiymatni saqlash
+                            )
                 except Exception as e:
                     print(f"Error during database save: {e}")
                     return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
