@@ -14,7 +14,9 @@ class GenerateRandomQuestionsView(APIView):
                 return Response({"error": "Invalid data format, expected JSON object"}, status=status.HTTP_400_BAD_REQUEST)
 
             questions_num = request_data.get('num', {})
-            additional_value = questions_num.get('additional_value', 0)
+            additional_value = questions_num.get('additional_value', 1)
+            if additional_value <= 0:
+                additional_value = 1
 
             questions_data = request_data.get('data', {})
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
@@ -22,6 +24,8 @@ class GenerateRandomQuestionsView(APIView):
             majburiy_fan_3 = questions_data.get('Majburiy_Fan_3', [])
             fan_1 = questions_data.get('Fan_1', [])
             fan_2 = questions_data.get('Fan_2', [])
+
+            print(f"Majburiy_Fan_1: {majburiy_fan_1}, Fan_1: {fan_1}")
 
             final_lists = []
 
@@ -70,4 +74,5 @@ class GenerateRandomQuestionsView(APIView):
             return []
         count = min(count, len(source_list))
         return random.sample(source_list, count)
+
 
