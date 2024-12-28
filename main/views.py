@@ -9,9 +9,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
 from django.db import transaction
-from .serializers import ZipFileSerializer
-from .models import ProcessedTest
-from question.models import *   
+from .serializers import ZipFileSerializer, ProcessedTestSerializer
+from .models import ProcessedTest, ProcessedTestResult
+from question.models import Question, QuestionList
 import shutil
 
 # S3 bilan ishlash uchun yordamchi funksiya
@@ -75,11 +75,16 @@ def find_image_files(directory):
     image_files = []
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+            if file.lower().endswith(('.png', '.jpg', '.jpeg')):  # Faqat rasm fayllari
                 image_files.append(os.path.join(root, file))
     return image_files
 
 class ProcessZipFileView(APIView):
+    def get(self, request, *args, **kwargs):
+        processed_tests = ProcessedTest.objects.all()
+        serializer = ProcessedTestSerializer(processed_tests, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def post(self, request, *args, **kwargs):
         serializer = ZipFileSerializer(data=request.data)
         if not serializer.is_valid():
@@ -117,46 +122,46 @@ class ProcessZipFileView(APIView):
                     marked_answers = check_marked_circle(image_path, coordinates)
                     student_id = extract_id(image_path, id_coordinates)
 
-                    # `RandomData` modeli bilan solishtirish
+                    # `QuestionList` modelida list_id bilan tekshirish
                     try:
-                        random_data = QuestionList.objects.get(random_number=student_id)
+                        question_list = QuestionList.objects.get(list_id=student_id)
                     except QuestionList.DoesNotExist:
-                        return Response({'error': f"Student ID {student_id} bazada topilmadi."}, 
+                        return Response({'error': f"Student ID {student_id} bazada topilmadi."},
                                         status=status.HTTP_400_BAD_REQUEST)
 
+                    student_test = ProcessedTest.objects.create(student_id=student_id)
                     # Savollarni tekshirish
                     for question_id, student_answer in marked_answers.items():
                         try:
                             true_answer = Question.objects.get(
-                                random_number=random_data,
+                                list=question_list,
                                 question_id=question_id
                             )
                             is_correct = true_answer.true_answer == student_answer
-                        except Question.MultipleObjectsReturned:
-                            return Response({'error': f"Bir nechta true_answer topildi: {question_id} uchun."}, 
-                                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                         except Question.DoesNotExist:
                             is_correct = False
 
                         # Natijalarni saqlash
-                        ProcessedTest.objects.create(
-                            student_id=student_id,
+                        result = ProcessedTestResult.objects.create(
+                            student=student_test,
                             question_id=question_id,
                             student_answer=student_answer,
                             is_correct=is_correct
                         )
 
-                    # Rasmlarni S3 ga yuklash
+                    # Rasmni S3ga yuklash va URLni saqlash
                     s3_key = f"images/answers/{os.path.basename(image_path)}"
                     s3_url = upload_to_s3(image_path, s3_key)
+                    # S3 URLni tekshirish
+                    if not s3_url:
+                        raise ValueError(f"S3 URL olishda xatolik: {image_path}")
+                    # `ProcessedTest` modeliga rasm URL'ni saqlash
+                    student_test.image_url = s3_url
+                    student_test.save()
+                data = {"message": "Success"}
+            return Response(data, status=status.HTTP_201_CREATED)
 
-                    results.append({
-                        'student_id': student_id,
-                        'marked_answers': marked_answers,
-                        'image_url': s3_url,
-                    })
 
-            return Response({'results': results}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

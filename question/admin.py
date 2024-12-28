@@ -9,8 +9,6 @@ class QuestionListAdmin(admin.ModelAdmin):
 class QuestionAdmin(admin.ModelAdmin):
     list_display = ('id', 'list', 'question_id', 'true_answer')  # Ko'rinadigan ustunlar
     search_fields = ('question_id', 'true_answer')  # Qidirish maydonchalari
-    list_filter = ('list',)  # Filtrlash opsiyalari
-    ordering = ('list', 'question_id')  # Tartib berish
 
 # Ro'yxatdan o'tkazish
 admin.site.register(QuestionList, QuestionListAdmin)

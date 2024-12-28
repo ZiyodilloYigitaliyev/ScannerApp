@@ -47,7 +47,6 @@ class GenerateRandomQuestionsView(APIView):
                 for category, questions in new_list.items():
                     for i, question in enumerate(questions):
                         final_questions[category].append({
-                            "id": question["id"],
                             "category": category,
                             "subject": question.get("subject", ""),
                             "text": question["text"],
@@ -65,11 +64,11 @@ class GenerateRandomQuestionsView(APIView):
                 # Save to database
                 try:
                     question_list = QuestionList.objects.create(list_id=list_id)
-                    for category, questions in new_list.items():
+                    for category, questions in final_questions.items():
                         for question in questions:
                             Question.objects.create(
                                 list=question_list,
-                                question_id=question.get('id'),
+                                question_id=question.get('order'),
                                 true_answer=question.get('true_answer', "")  # String qiymatni saqlash
                             )
                 except Exception as e:
