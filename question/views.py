@@ -36,7 +36,6 @@ class GenerateRandomQuestionsView(APIView):
                     "Fan_1": self.clean_questions(self.get_random_items(fan_1, 30)),
                     "Fan_2": self.clean_questions(self.get_random_items(fan_2, 30)),
                 }
-
                 list_id = random.randint(1000, 9999)
                 # final_questions - bu yerda ma'lumotni to'plash
                 final_questions = {
@@ -85,8 +84,7 @@ class GenerateRandomQuestionsView(APIView):
     def get_random_items(source_list, count):
         if not source_list:
             return []
-
-        count = min(count, len(source_list))  # Bu yerda count None bo'lsa xatolik yuzaga keladi.
+        count = min(count, len(source_list))
         return random.sample(source_list, count)
 
     @staticmethod
