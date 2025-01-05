@@ -19,3 +19,4 @@ weasyprint
 cairocffi
 pango
 gobject
+corsheaders
