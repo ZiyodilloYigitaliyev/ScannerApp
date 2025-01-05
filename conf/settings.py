@@ -14,7 +14,7 @@ SECRET_KEY = 'django-insecure-$yt6lkei#@0d#em!5ygkn+%1!&as(&wnpa=wjv$#=cktfahpk^
 
 DEBUG = True
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ["scan-app-a3872b370d3e.herokuapp.com"]
 
 
 
