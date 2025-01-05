@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            const response = await fetch("https://create-test-app-100ceac94608.herokuapp.com/questions");
+            const response = await fetch("https://create-test-app-100ceac94608.herokuapp.com/questions/");
             if (!response.ok) throw new Error("Savollarni olishda xatolik yuz berdi.");
             const data = await response.json();
 
@@ -138,8 +138,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     ...data
                 },
             ];
-            console.log(requestData);
-            const postResponse = await fetch("https://scan-app-a3872b370d3e.herokuapp.com/api/questions", {
+            const postResponse = await fetch("https://scan-app-a3872b370d3e.herokuapp.com/api/questions/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
