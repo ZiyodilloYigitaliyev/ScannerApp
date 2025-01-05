@@ -1,0 +1,52 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Testing Center</title>
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+</head>
+<body>
+    <div class="flex-container">
+        <div class="container">
+        <header>
+            <h1>Savollarni yuklash</h1>
+        </header>
+
+        <div class="button-container">
+            <button id="getDataBtn">Yuklash</button>
+        </div>
+
+        <div id="responseData" class="response-data">
+            <pre id="dataOutput"></pre>
+        </div>
+    </div>
+        <div class="container">
+                <header>
+                    <h1>Fayl yuborish</h1>
+                </header>
+
+                <form id="fileForm">
+                    <div id="fileFieldsContainer">
+                        <!-- Fayl qo'shish maydoni boshlanishi uchun joy -->
+                    </div>
+
+                    <div class="button-container">
+                        <button type="button" id="addFileBtn">+ Fayl qo'shish</button>
+                        <button type="submit" id="submitBtn">So'rov yuborish</button>
+                    </div>
+                </form>
+
+                <div id="responseData" class="response-data">
+                    <pre id="dataOutput"></pre>
+                </div>
+           </div>
+
+
+    </div>
+
+    <script src="{% static 'js/dashboard.js' %}"></script>
+
+</body>
+</html>

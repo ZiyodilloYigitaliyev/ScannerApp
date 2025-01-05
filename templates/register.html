@@ -1,0 +1,44 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    <div>
+        <h1>Register</h1>
+        <form id="register-form">
+            <label>Username: <input type="text" id="username"></label><br>
+            <label>Password: <input type="password" id="password"></label><br>
+            <button type="button" class="btn" id="register-btn">Register</button>
+        </form>
+        <div id="response"></div>
+    </div>
+
+    <script>
+        document.getElementById("register-btn").addEventListener("click", async () => {
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+
+            const response = await fetch("https://create-test-app-100ceac94608.herokuapp.com/register/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ username, password }),
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                document.getElementById("response").textContent = result.message;
+                window.location.href = '/login';
+            } else {
+                document.getElementById("response").textContent = `Error: ${result.detail}`;
+            }
+        });
+    </script>
+</body>
+</html>

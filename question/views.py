@@ -8,6 +8,16 @@ import re
 
 # APIView
 class GenerateRandomQuestionsView(APIView):
+    def get(self, request):
+        try:
+            # Barcha QuestionList obyektlarini olish
+            question_lists = QuestionList.objects.prefetch_related('questions').all()
+            serializer = QuestionListSerializer(question_lists, many=True)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
     def post(self, request):
         try:
              # JSON ma'lumotni to'g'rilash
@@ -67,6 +77,11 @@ class GenerateRandomQuestionsView(APIView):
                         for question in questions:
                             Question.objects.create(
                                 list=question_list,
+                                category=category,
+                                subject=question.get('subject', ""),
+                                text=question.get('text', ""),
+                                options=question.get('options', ""),
+                                image=question.get('image', None),
                                 question_id=question.get('order'),
                                 true_answer=question.get('true_answer', "")  # String qiymatni saqlash
                             )
@@ -75,7 +90,7 @@ class GenerateRandomQuestionsView(APIView):
                     return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-            return Response({"final_lists": final_lists}, status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
