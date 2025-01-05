@@ -82,13 +82,4 @@ button:hover {
     background-color: #45a049;
 }
 
-/* Error xabari dizayni */
-.error {
-    color: #FF4D4D;
-    font-size: 14px;
-    text-align: center;
-    margin-top: 10px;
-    background-color: #FFBABA;
-    padding: 10px;
-    border-radius: 6px;
-}
+
