@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'question',
     'respons',
     'storages',
+    'corsheaders',
     'rest_framework',
     
 ]
@@ -40,6 +41,8 @@ REST_FRAMEWORK = {
     }
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -51,7 +54,7 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'conf.urls'
-
+CORS_ALLOW_ALL_ORIGINS = True
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
