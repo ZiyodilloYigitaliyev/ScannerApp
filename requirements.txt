@@ -4,6 +4,7 @@ opencv-contrib-python
 uvicorn
 boto3 
 uuid
+requests
 django-storages
 djangorestframework
 python-dotenv
