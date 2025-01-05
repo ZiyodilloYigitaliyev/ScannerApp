@@ -3,11 +3,13 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import QuestionList, Question
 from .serializers import QuestionSerializer, QuestionListSerializer
+from rest_framework.permissions import AllowAny
 import random
 import re
 
 # APIView
 class GenerateRandomQuestionsView(APIView):
+    permission_classes = [AllowAny]
     def get(self, request):
         try:
             # Barcha QuestionList obyektlarini olish

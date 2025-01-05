@@ -13,6 +13,7 @@ from .serializers import ZipFileSerializer, ProcessedTestSerializer
 from .models import ProcessedTest, ProcessedTestResult
 from question.models import Question, QuestionList
 import shutil
+from rest_framework.permissions import AllowAny
 
 # S3 bilan ishlash uchun yordamchi funksiya
 def upload_to_s3(file_path, s3_key):
@@ -80,6 +81,7 @@ def find_image_files(directory):
     return image_files
 
 class ProcessZipFileView(APIView):
+    permission_classes = [AllowAny]
     def get(self, request, *args, **kwargs):
         processed_tests = ProcessedTest.objects.all()
         serializer = ProcessedTestSerializer(processed_tests, many=True)
