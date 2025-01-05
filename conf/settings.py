@@ -27,7 +27,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'main',
     'question',
-    'respons',
     'storages',
     "corsheaders",
     'rest_framework',
