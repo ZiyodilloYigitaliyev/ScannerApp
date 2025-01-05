@@ -47,9 +47,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <label for="categorySelect${fileCount}">Kategoriya:</label>
                 <select id="categorySelect${fileCount}" name="category" required>
                     <option value="">Kategoriya tanlang</option>
-                    <option value="Majburiy_fan_1">Majburiy_fan_1</option>
-                    <option value="Majburiy_fan_2">Majburiy_fan_2</option>
-                    <option value="Majburiy_fan_3">Majburiy_fan_3</option>
+                    <option value="Majburiy_Fan_1">Majburiy_Fan_1</option>
+                    <option value="Majburiy_Fan_2">Majburiy_Fan_2</option>
+                    <option value="Majburiy_Fan_3"><Majburiy_Fan_3></Majburiy_Fan_3></option>
                     <option value="Fan_1">Fan_1</option>
                     <option value="Fan_2">Fan_2</option>
                 </select>
