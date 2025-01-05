@@ -107,7 +107,7 @@ def generate_pdf(question_data):
     return pdf_files
 
 def get_api_data():
-    url = "http://127.0.0.1:8000/api/questions"
+    url = "https://scan-app-a3872b370d3e.herokuapp.com/api/questions"
     response = requests.get(url)
     if response.status_code == 200:
         return response.json()
