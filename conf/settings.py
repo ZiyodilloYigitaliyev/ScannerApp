@@ -29,7 +29,6 @@ INSTALLED_APPS = [
     'question',
     'respons',
     'storages',
-    'corsheaders',
     'rest_framework',
     
 ]
@@ -41,7 +40,6 @@ REST_FRAMEWORK = {
     }
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
