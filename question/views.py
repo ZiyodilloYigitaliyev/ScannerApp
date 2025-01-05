@@ -6,7 +6,9 @@ from .serializers import QuestionSerializer, QuestionListSerializer
 from rest_framework.permissions import AllowAny
 import random
 import re
-
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+@method_decorator(csrf_exempt, name='dispatch')
 # APIView
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]

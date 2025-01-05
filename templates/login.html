@@ -45,9 +45,9 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    const token = data.access_token;  // Tokenni server javobidan oling
-                    localStorage.setItem("jwt_token", token);  // Tokenni localStorage ga saqlash
-                    window.location.href = '/dashboard';  // Dashboardga yo'naltirish
+                    const token = data.access_token;
+                    localStorage.setItem("jwt_token", token);
+                    window.location.href = '/dashboard';
                 } else {
                     const data = await response.json();
                     errorMessage.textContent = data.detail || 'Invalid username or password';  // Serverdan olingan xatolikni chiqarish
