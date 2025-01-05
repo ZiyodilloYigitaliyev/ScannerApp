@@ -19,4 +19,4 @@ weasyprint
 cairocffi
 pango
 gobject
-corsheaders
+django-cors-headers
