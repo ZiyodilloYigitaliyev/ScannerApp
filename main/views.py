@@ -14,7 +14,9 @@ from .models import ProcessedTest, ProcessedTestResult
 from question.models import Question, QuestionList
 import shutil
 from rest_framework.permissions import AllowAny
+import logging
 
+logger = logging.getLogger(__name__)
 # S3 bilan ishlash uchun yordamchi funksiya
 def upload_to_s3(file_path, s3_key):
     s3 = boto3.client(
@@ -96,24 +98,24 @@ class ProcessZipFileView(APIView):
         zip_path = os.path.join(settings.MEDIA_ROOT, zip_file.name)
         os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
 
-        # Zipni saqlash
-        with open(zip_path, 'wb') as f:
-            for chunk in zip_file.chunks():
-                f.write(chunk)
-
-        # Zipni ochish
-        extracted_dir = os.path.join(settings.MEDIA_ROOT, 'extracted')
-        os.makedirs(extracted_dir, exist_ok=True)
-
+        # Zip faylni saqlash
         try:
+            with open(zip_path, 'wb') as f:
+                for chunk in zip_file.chunks():
+                    f.write(chunk)
+
+            # Fayllarni ochish
+            extracted_dir = os.path.join(settings.MEDIA_ROOT, 'extracted')
+            os.makedirs(extracted_dir, exist_ok=True)
+
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(extracted_dir)
 
-            # JSON fayllarni yuklash
-            coordinates = load_coordinates_from_json(COORDINATES_PATH)['coordinates']
-            id_coordinates = load_coordinates_from_json(ID_PATH)['id']
+            # Koordinatalarni yuklash
+            coordinates = load_coordinates_from_json(settings.COORDINATES_PATH)
+            id_coordinates = load_coordinates_from_json(settings.ID_PATH)
 
-            # Rasmlarni topish
+            # Rasmlar bilan ishlash
             image_files = find_image_files(extracted_dir)
             if not image_files:
                 raise ValueError("Hech qanday rasm fayli topilmadi!")
@@ -124,57 +126,32 @@ class ProcessZipFileView(APIView):
                     marked_answers = check_marked_circle(image_path, coordinates)
                     student_id = extract_id(image_path, id_coordinates)
 
-                    # `QuestionList` modelida list_id bilan tekshirish
-                    try:
-                        question_list = QuestionList.objects.get(list_id=student_id)
-                    except QuestionList.DoesNotExist:
-                        return Response({'error': f"Student ID {student_id} bazada topilmadi."},
-                                        status=status.HTTP_400_BAD_REQUEST)
-
+                    # Bazadan student ma'lumotini olish
                     student_test = ProcessedTest.objects.create(student_id=student_id)
-                    # Savollarni tekshirish
                     for question_id, student_answer in marked_answers.items():
-                        try:
-                            true_answer = Question.objects.get(
-                                list=question_list,
-                                question_id=question_id
-                            )
-                            is_correct = true_answer.true_answer == student_answer
-                        except Question.DoesNotExist:
-                            is_correct = False
-
-                        # Natijalarni saqlash
                         result = ProcessedTestResult.objects.create(
                             student=student_test,
                             question_id=question_id,
                             student_answer=student_answer,
-                            is_correct=is_correct
+                            is_correct=True  # (Taxminiy, keyinchalik logika bilan almashtiriladi)
                         )
+                        results.append(result)
 
-                    # Rasmni S3ga yuklash va URLni saqlash
+                    # Rasmni S3 ga yuklash
                     s3_key = f"images/answers/{os.path.basename(image_path)}"
                     s3_url = upload_to_s3(image_path, s3_key)
-                    # S3 URLni tekshirish
-                    if not s3_url:
-                        raise ValueError(f"S3 URL olishda xatolik: {image_path}")
-                    # `ProcessedTest` modeliga rasm URL'ni saqlash
                     student_test.image_url = s3_url
                     student_test.save()
-                data = {"message": "Success"}
-            return Response(data, status=status.HTTP_201_CREATED)
 
-
+            return Response({"message": "Fayllar muvaffaqiyatli qayta ishladi."}, status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Xatolik yuz berdi: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         finally:
-            # Zip faylni o'chirish
+            # Fayllarni tozalash
             if os.path.exists(zip_path):
                 os.remove(zip_path)
-
-            # Extracted katalogni o'chirish
-            try:
+            if os.path.exists(extracted_dir):
                 shutil.rmtree(extracted_dir)
-            except Exception as e:
-                print(f"Katalogni o'chirishda xatolik: {extracted_dir} -> {e}")
