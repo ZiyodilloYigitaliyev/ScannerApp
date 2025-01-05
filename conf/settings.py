@@ -54,7 +54,11 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'conf.urls'
+MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    "https://scan-app-a3872b370d3e.herokuapp.com",
+]
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
