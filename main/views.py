@@ -84,6 +84,7 @@ def find_image_files(directory):
 
 class ProcessZipFileView(APIView):
     permission_classes = [AllowAny]
+
     def get(self, request, *args, **kwargs):
         processed_tests = ProcessedTest.objects.all()
         serializer = ProcessedTestSerializer(processed_tests, many=True)
@@ -98,8 +99,8 @@ class ProcessZipFileView(APIView):
         zip_path = os.path.join(settings.MEDIA_ROOT, zip_file.name)
         os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
 
-        # Zip faylni saqlash
         try:
+            # Zip faylni saqlash
             with open(zip_path, 'wb') as f:
                 for chunk in zip_file.chunks():
                     f.write(chunk)
@@ -107,41 +108,49 @@ class ProcessZipFileView(APIView):
             # Fayllarni ochish
             extracted_dir = os.path.join(settings.MEDIA_ROOT, 'extracted')
             os.makedirs(extracted_dir, exist_ok=True)
-
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(extracted_dir)
 
-            # Koordinatalarni yuklash
-            coordinates = load_coordinates_from_json(settings.COORDINATES_PATH)
-            id_coordinates = load_coordinates_from_json(settings.ID_PATH)
+            # JSON fayllarni yuklash
+            try:
+                coordinates = load_coordinates_from_json(COORDINATES_PATH)
+                id_coordinates = load_coordinates_from_json(ID_PATH)
+            except FileNotFoundError as e:
+                logger.error(f"Koordinata fayli topilmadi: {str(e)}")
+                raise ValueError("Koordinata fayli yoki ID fayli mavjud emas!")
 
-            # Rasmlar bilan ishlash
+            # Rasmlarni topish
             image_files = find_image_files(extracted_dir)
             if not image_files:
                 raise ValueError("Hech qanday rasm fayli topilmadi!")
 
+            # Rasmlar bilan ishlash
             results = []
             with transaction.atomic():
                 for image_path in image_files:
                     marked_answers = check_marked_circle(image_path, coordinates)
                     student_id = extract_id(image_path, id_coordinates)
 
-                    # Bazadan student ma'lumotini olish
+                    # Student test ma'lumotlarini saqlash
                     student_test = ProcessedTest.objects.create(student_id=student_id)
                     for question_id, student_answer in marked_answers.items():
                         result = ProcessedTestResult.objects.create(
                             student=student_test,
                             question_id=question_id,
                             student_answer=student_answer,
-                            is_correct=True  # (Taxminiy, keyinchalik logika bilan almashtiriladi)
+                            is_correct=False  # Taxminiy, logikani o'zgartirish mumkin
                         )
                         results.append(result)
 
-                    # Rasmni S3 ga yuklash
-                    s3_key = f"images/answers/{os.path.basename(image_path)}"
-                    s3_url = upload_to_s3(image_path, s3_key)
-                    student_test.image_url = s3_url
-                    student_test.save()
+                    # S3 ga yuklash
+                    try:
+                        s3_key = f"images/answers/{os.path.basename(image_path)}"
+                        s3_url = upload_to_s3(image_path, s3_key)
+                        student_test.image_url = s3_url
+                        student_test.save()
+                    except Exception as s3_error:
+                        logger.error(f"S3 ga yuklashda xatolik: {str(s3_error)}")
+                        raise ValueError("S3 ga yuklashda xatolik yuz berdi!")
 
             return Response({"message": "Fayllar muvaffaqiyatli qayta ishladi."}, status=status.HTTP_201_CREATED)
 
@@ -150,7 +159,7 @@ class ProcessZipFileView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         finally:
-            # Fayllarni tozalash
+            # Vaqtinchalik fayllarni tozalash
             if os.path.exists(zip_path):
                 os.remove(zip_path)
             if os.path.exists(extracted_dir):
