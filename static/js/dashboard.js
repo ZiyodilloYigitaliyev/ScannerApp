@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     ...data
                 },
             ];
-            const postResponse = await fetch("https://scan-app-a3872b370d3e.herokuapp.com/api/questions/", {
+            const postResponse = await fetch("https://scan-app-a3872b370d3e.herokuapp.com/api/questions", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
