@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <option value="">Kategoriya tanlang</option>
                     <option value="Majburiy_Fan_1">Majburiy_Fan_1</option>
                     <option value="Majburiy_Fan_2">Majburiy_Fan_2</option>
-                    <option value="Majburiy_Fan_3"><Majburiy_Fan_3></Majburiy_Fan_3></option>
+                    <option value="Majburiy_Fan_3">Majburiy_Fan_3</option>
                     <option value="Fan_1">Fan_1</option>
                     <option value="Fan_2">Fan_2</option>
                 </select>
@@ -93,14 +93,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fileCount = 0;
     }
 
-    function handleTokenExpiration(response) {
-        if (response.status === 401) {
-            alert("Token vaqti tugagan. Login sahifasiga yo'naltirilasiz.");
-            window.location.href = "/login"; // Login sahifasiga yo'naltirish
-            throw new Error("Token vaqti tugagan.");
-        }
-        return response;
-    }
+
     // Formani yuborish
     fileForm.addEventListener("submit", async function (event) {
         event.preventDefault();
