@@ -73,8 +73,7 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
 ]
 CORS_ALLOWED_ORIGINS = [
-    "https://response-app-f961b14d1345.herokuapp.com",
-    "http://127.0.0.1:8000/"
+    "http://localhost:3000"
 ]
 
 ROOT_URLCONF = 'conf.urls'
