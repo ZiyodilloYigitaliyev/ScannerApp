@@ -48,7 +48,7 @@ class GenerateRandomQuestionsView(APIView):
                     "Fan_1": self.clean_questions(self.get_random_items(fan_1, 30)),
                     "Fan_2": self.clean_questions(self.get_random_items(fan_2, 30)),
                 }
-                list_id = random.randint(1000, 9999)
+                list_id = random.randint(100000, 999999)
                 # final_questions - bu yerda ma'lumotni to'plash
                 final_questions = {
                     category: [] for category in new_list.keys()
