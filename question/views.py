@@ -10,13 +10,29 @@ import re
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request):
-        """Bazadan oxirgi list_id ni olib, yangisini qaytaradi."""
+def get(self, request):
+    """
+    Bazadan oxirgi list_id ni olib, yangisini qaytaradi va barcha QuestionList obyektlarini qaytaradi.
+    """
+    try:
+        # Bazadan oxirgi list_id ni olish yoki yaratish
         last_id_obj, created = QuestionList.objects.get_or_create(id=1)
         next_id = last_id_obj.last_id + 1
         last_id_obj.last_id = next_id
         last_id_obj.save()
-        return next_id
+
+        # Barcha QuestionList obyektlarini olish
+        question_lists = QuestionList.objects.prefetch_related('questions').all()
+        serializer = QuestionListSerializer(question_lists, many=True)
+
+        # Natijani qaytarish
+        return Response({
+            "next_list_id": next_id,
+            "question_lists": serializer.data
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
     def post(self, request):
         try:
