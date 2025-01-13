@@ -7,31 +7,27 @@ from rest_framework.permissions import AllowAny
 import random
 import re
 
-# APIView
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
-    def get(self, request):
-        try:
-            # Barcha QuestionList obyektlarini olish
-            question_lists = QuestionList.objects.prefetch_related('questions').all()
-            serializer = QuestionListSerializer(question_lists, many=True)
 
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+    def get_next_list_id(self):
+        """Bazadan oxirgi list_id ni olib, yangisini qaytaradi."""
+        last_id_obj, created = QuestionList.objects.get_or_create(id=1)
+        next_id = last_id_obj.last_id + 1
+        last_id_obj.last_id = next_id
+        last_id_obj.save()
+        return next_id
 
     def post(self, request):
         try:
-             # JSON ma'lumotni to'g'rilash
             if isinstance(request.data, list):
-                # List ichidagi birinchi elementni olish
                 request_data = request.data[0]
             else:
                 request_data = request.data
             questions_num = request_data.get('num', {})
             questions_data = request_data.get('data', {})
             additional_value = questions_num.get('additional_value')
-            # Majburiy va boshqa fanlar
+
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
             majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
             majburiy_fan_3 = questions_data.get('Majburiy_Fan_3', [])
@@ -48,15 +44,13 @@ class GenerateRandomQuestionsView(APIView):
                     "Fan_1": self.clean_questions(self.get_random_items(fan_1, 30)),
                     "Fan_2": self.clean_questions(self.get_random_items(fan_2, 30)),
                 }
-                list_id = random.randint(100000, 999999)
-                # final_questions - bu yerda ma'lumotni to'plash
-                final_questions = {
-                    category: [] for category in new_list.keys()
-                }
+
+                list_id = self.get_next_list_id()  # Yangi list_id ni olish
+                final_questions = {category: [] for category in new_list.keys()}
                 global_order_counter = 1
-                # final_questions'ni to'ldirish
+
                 for category, questions in new_list.items():
-                    for i, question in enumerate(questions):
+                    for question in questions:
                         final_questions[category].append({
                             "category": category,
                             "subject": question.get("subject", ""),
@@ -64,15 +58,15 @@ class GenerateRandomQuestionsView(APIView):
                             "options": question.get("options", ""),
                             "true_answer": question.get("true_answer", ""),
                             "image": question.get("image", None),
-                            "order": global_order_counter
+                            "order": global_order_counter,
                         })
                         global_order_counter += 1
-                # final_listsga qo'shish
+
                 final_lists.append({
                     "list_id": list_id,
                     "questions": final_questions
                 })
-                # Save to database
+
                 try:
                     question_list = QuestionList.objects.create(list_id=list_id)
                     for category, questions in final_questions.items():
@@ -85,14 +79,13 @@ class GenerateRandomQuestionsView(APIView):
                                 options=question.get('options', ""),
                                 image=question.get('image', None),
                                 question_id=question.get('order'),
-                                true_answer=question.get('true_answer', "")  # String qiymatni saqlash
+                                true_answer=question.get('true_answer', ""),
                             )
                 except Exception as e:
                     print(f"Error during database save: {e}")
                     return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
 
-
-            return Response(status=status.HTTP_201_CREATED)
+            return Response(final_lists, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -106,7 +99,6 @@ class GenerateRandomQuestionsView(APIView):
 
     @staticmethod
     def clean_questions(questions):
-        """Savollarning matnini tozalaydi."""
         for question in questions:
             question['text'] = re.sub(r'^\d+\.\s*', '', question['text'])
         return questions

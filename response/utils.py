@@ -1,16 +1,15 @@
 import requests
-from weasyprint import HTML
 from io import BytesIO
 import io
 import zipfile
-from weasyprint.images import Image
 from math import ceil
+from xhtml2pdf import pisa
 
 def generate_pdf(question_data):
     pdf_files = {}
 
     for list_item in question_data:
-        if isinstance(list_item, dict):  # Bu yerda list_item lug'at ekanligini tekshiramiz
+        if isinstance(list_item, dict):
             list_id = list_item.get('list_id')
             questions = list_item.get('questions', [])
 
@@ -71,23 +70,19 @@ def generate_pdf(question_data):
                 image_url = item.get('image', None)
                 category = item.get('category', 'Kategoriya mavjud emas')
 
-                # Agar subject yoki category o'zgargan bo'lsa, yangi bo'limni qo'shamiz
                 if subject != current_subject:
                     current_subject = subject
                     html_content += f"<div class='subject'>{subject} ({category})</div>"
 
-                # Savolni chiqaramiz
                 question_text_with_number = f"{question_number}. {question_text}"
                 html_content += f"<h3>{question_text_with_number}</h3>"
 
-                # Variantlarni chiqarish
                 option_lines = options.split('\n')
                 html_content += "<div class='options'>"
                 for option in option_lines:
                     html_content += f"<p class='option'>{option.strip()}</p>"
                 html_content += "</div>"
 
-                # Rasmni chiqarish
                 if image_url:
                     html_content += f'<img src="{image_url}" alt="Savol rasm">'
 
@@ -95,13 +90,10 @@ def generate_pdf(question_data):
 
             html_content += "</body></html>"
 
-            # PDF yaratish va uni bytes sifatida saqlash
-            pdf = HTML(string=html_content).write_pdf()
+            pdf = pisa(string=html_content).write_pdf()
 
-            # PDF faylini 'bytes' sifatida saqlash
             pdf_files[f"list_{list_id}_questions.pdf"] = pdf
         else:
-            # Noto'g'ri formatdagi elementlarni tekshirish
             print(f"Xato: {list_item} - Bu element lug'at emas, matn ko'rinishidagi ma'lumot.")
 
     return pdf_files

@@ -1,5 +1,4 @@
 from django.shortcuts import render
-from django.shortcuts import render
 from django.http import HttpResponse
 from response.utils import get_api_data, generate_pdf, create_zip_from_pdfs
 
