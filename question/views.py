@@ -10,7 +10,7 @@ import re
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
 
-    def get_next_list_id(self):
+    def get(self, request):
         """Bazadan oxirgi list_id ni olib, yangisini qaytaradi."""
         last_id_obj, created = QuestionList.objects.get_or_create(id=1)
         next_id = last_id_obj.last_id + 1
