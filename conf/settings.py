@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from decouple import config
 import dj_database_url
 from urllib.parse import urlparse
+
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,6 +31,8 @@ INSTALLED_APPS = [
     'question',
     'storages',
     "corsheaders",
+    "ckeditor",
+    "ckeditor_uploader",
     'rest_framework',
     
 ]
@@ -52,6 +55,18 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+CKEDITOR_CONFIGS = {
+    'default': {
+        'toolbar': 'full',
+        'extraPlugins': 'mathjax',
+        'mathJaxLib': 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
+        'height': 300,
+        'width': 'auto',
+    },
+}
+
+CKEDITOR_UPLOAD_PATH = "uploads/"
+
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
@@ -73,11 +88,6 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
 ]
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',  
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:8000',
-]
 
 ROOT_URLCONF = 'conf.urls'
 TEMPLATES = [
@@ -96,7 +106,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'conf.asgi.application'
+WSGI_APPLICATION = 'conf.wsgi.application'
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -168,5 +178,28 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# CORS_ORIGIN_WHITELIST = [
+#     'http://127.0.0.1:8000',
+#     'http://192.168.85.208:8000',
+#     'http://localhost:3000',
+#     'http://192.168.85.8:3000',
+    
+# ]
+
+
+# CSRF_TRUSTED_ORIGINS = [
+#     'http://127.0.0.1:8000',
+#     'http://192.168.85.208:8000',
+#     'http://localhost:3000',
+#     'http://192.168.85.8:3000',
+    
+# ]
+
+# CORS_ALLOWED_ORIGINS = [
+#     'http://127.0.0.1:8000',
+#     'http://192.168.85.208:8000',
+#     'http://localhost:3000',
+#     'http://192.168.85.8:3000',
+# ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

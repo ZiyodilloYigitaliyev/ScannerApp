@@ -6,12 +6,154 @@ from .serializers import QuestionSerializer, QuestionListSerializer
 from rest_framework.permissions import AllowAny
 import random
 import re
+from django.conf import settings
+from tempfile import NamedTemporaryFile
+from rest_framework.parsers import MultiPartParser, FormParser
+import boto3
+from bs4 import BeautifulSoup
+import zipfile
+import os
+
+class HTMLFromZipView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
+
+    def find_red_class(self, soup):
+        style_tags = soup.find_all("style")
+        for style_tag in style_tags:
+            styles = style_tag.string
+            if styles:
+                matches = re.findall(r'\.(\w+)\s*{[^}]*color:\s*#ff0000\s*;?', styles, re.IGNORECASE)
+                if matches:
+                    return matches[0]
+        return None
+
+    def post(self, request, *args, **kwargs):
+        zip_file = request.FILES.get('file')
+        if not zip_file:
+            return Response({"error": "ZIP fayl topilmadi"}, status=400)
+
+        # Kategoriya va mavzu tekshiruvi
+        category = request.data.get('category')
+        subject = request.data.get('subject')
+
+        if not category or not subject:
+            return Response(
+                {"error": "Category va Subject majburiy maydonlardir."},
+                status=400
+            )
+
+        # ZIP faylni ochish
+        with zipfile.ZipFile(zip_file, 'r') as z:
+            html_file = None
+            images = {}
+
+            for file_name in z.namelist():
+                if file_name.endswith('.html'):
+                    html_file = z.read(file_name).decode('utf-8')
+                elif file_name.startswith('images/'):
+                    images[file_name] = z.read(file_name)
+
+            if not html_file:
+                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
+
+        # Rasmlarni yuklash uchun S3 sozlamalari
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_KEY
+        )
+        bucket_name = settings.S3_BUCKET_NAME
+
+        image_urls = {}
+
+        def upload_image_to_s3(image_name, image_data):
+            temp_file = NamedTemporaryFile(delete=False)
+            temp_file.write(image_data)
+            temp_file.close()
+            s3_key = f'images/{os.path.basename(image_name)}'
+            s3_client.upload_file(temp_file.name, bucket_name, s3_key)
+            os.unlink(temp_file.name)
+            return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
+
+        for img_name, img_data in images.items():
+            if img_name not in image_urls:
+                image_urls[img_name] = upload_image_to_s3(img_name, img_data)
+
+        # HTML faylni qayta ishlash
+        soup = BeautifulSoup(html_file, 'html.parser')
+        red_class = self.find_red_class(soup)
+        questions = []
+        current_question = None
+
+        for p_tag in soup.find_all('p'):
+            text = p_tag.get_text(strip=True)
+            if not text:
+                continue
+
+            for img_tag in p_tag.find_all('img'):
+                img_src = img_tag.get('src')
+                if img_src in image_urls:
+                    img_tag['src'] = image_urls[img_src]
+
+            if text[0].isdigit() and '.' in text:
+                if current_question:
+                    questions.append(current_question)
+                current_question = {
+                    "text": str(p_tag),
+                    "options": "",
+                    "true_answer": None,
+                    "category": category,
+                    "subject": subject
+                }
+            elif text.startswith(("A)", "B)", "C)", "D)")):
+                if current_question:
+                    current_question["options"] += str(p_tag)
+
+                    if red_class:
+                        span_tags = p_tag.find_all("span", class_=red_class)
+                        if span_tags:
+                            current_question["true_answer"] = text[0]
+
+        if current_question:
+            questions.append(current_question)
+
+        # Savollarni bazaga saqlash
+        for question_data in questions:
+            Question.objects.create(
+                text=question_data["text"],
+                options=question_data["options"],
+                true_answer=question_data["true_answer"],
+                category=question_data["category"],
+                subject=question_data["subject"]
+            )
+
+        return Response({"message": "Savollar ma'lumotlar bazasiga muvaffaqiyatli saqlandi."}, status=201)
+    
+
+class ListQuestionsView(APIView):
+    def get(self, request):
+        questions = Question.objects.all()
+        serializer = QuestionSerializer(questions, many=True)
+        grouped_questions = {}
+        for question in serializer.data:
+            category = question['category']
+            if category not in grouped_questions:
+                grouped_questions[category] = []
+            grouped_questions[category].append(question)
+        return Response({"data": grouped_questions})
+
+
+class DeleteAllQuestionsView(APIView):
+    def delete(self, request):
+        Question.objects.all().delete()
+        return Response({"message": "All questions have been deleted successfully."}, status=status.HTTP_200_OK)
+
+
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
     def get(self, request):
-        try:
-            # Barcha QuestionList obyektlarini olish
+        try:    
             question_lists = QuestionList.objects.prefetch_related('questions').all()
             serializer = QuestionListSerializer(question_lists, many=True)
 
@@ -22,15 +164,12 @@ class GenerateRandomQuestionsView(APIView):
 
     
     def get_next_list_id(self):
-        """Bazadan oxirgi list_id ni olib, yangisini qaytaradi."""
-        last_id_obj, created = LastListID.objects.get_or_create(id=1)  # Har doim bitta yozuvni ishlatamiz
+        last_id_obj, created = QuestionList.objects.get_or_create(id=1)
         next_id = last_id_obj.last_id + 1
         last_id_obj.last_id = next_id
         last_id_obj.save()
         return next_id
        
-
-   
 
     def post(self, request):
         try:
@@ -59,7 +198,7 @@ class GenerateRandomQuestionsView(APIView):
                     "Fan_2": self.clean_questions(self.get_random_items(fan_2, 30)),
                 }
 
-                list_id = self.get_next_list_id()  # Yangi list_id ni olish
+                list_id = self.get_next_list_id()
                 final_questions = {category: [] for category in new_list.keys()}
                 global_order_counter = 1
 
