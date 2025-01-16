@@ -2,6 +2,7 @@ from django.db import models
 
 class ProcessedTest(models.Model):
     student_id = models.IntegerField()
+    number_id = models.IntegerField()
     image_url = models.URLField(blank=True, null=True)
     def __str__(self):
         return f"{self.student_id}"

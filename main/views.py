@@ -17,6 +17,7 @@ from rest_framework.permissions import AllowAny
 import logging
 
 logger = logging.getLogger(__name__)
+
 # S3 bilan ishlash uchun yordamchi funksiya
 def upload_to_s3(file_path, s3_key):
     s3 = boto3.client(
@@ -34,6 +35,7 @@ def upload_to_s3(file_path, s3_key):
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.json')
 ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
+NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')
 
 def load_coordinates_from_json(json_path):
     with open(json_path, 'r') as file:
@@ -72,6 +74,23 @@ def extract_id(image_path, id_coordinates, threshold=200):
                     id_result[digit] = number
                 break
     return ''.join([id_result.get(f'n{i}', '?') for i in range(1, 5)])
+
+def extract_number(image_path, number_coordinates, threshold=200):
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    number_result = {}
+    for digit, positions in number_coordinates.items():
+        for number, coord in positions.items():
+            if not isinstance(coord, list) or len(coord) != 2:
+                raise ValueError(f"Noto'g'ri koordinata formati: {coord}")
+            x, y = map(int, coord)
+            radius = 5
+            roi = image[y - radius:y + radius, x - radius:x + radius]
+            mean_brightness = np.mean(roi)
+            if mean_brightness < threshold:
+                if digit not in number_result:
+                    number_result[digit] = number
+                break
+    return ''.join([number_result.get(f'n{i}', '?') for i in range(1, 5)])
 
 def find_image_files(directory):
     """ Katalog ichidan rasm fayllarini topish """
@@ -115,6 +134,7 @@ class ProcessZipFileView(APIView):
             try:
                 coordinates = load_coordinates_from_json(COORDINATES_PATH)
                 id_coordinates = load_coordinates_from_json(ID_PATH)
+                number_coordinates = load_coordinates_from_json(NUMBER_PATH)
             except FileNotFoundError as e:
                 logger.error(f"Koordinata fayli topilmadi: {str(e)}")
                 raise ValueError("Koordinata fayli yoki ID fayli mavjud emas!")
@@ -130,13 +150,15 @@ class ProcessZipFileView(APIView):
                 for image_path in image_files:
                     marked_answers = check_marked_circle(image_path, coordinates)
                     student_id = extract_id(image_path, id_coordinates)
+                    student_number = extract_number(image_path, number_coordinates)
 
                     # Student test ma'lumotlarini saqlash
-                    student_test = ProcessedTest.objects.create(student_id=student_id)
+                    student_test = ProcessedTest.objects.create(student_id=student_id, student_number=student_number)
                     for question_id, student_answer in marked_answers.items():
                         result = ProcessedTestResult.objects.create(
                             student=student_test,
                             question_id=question_id,
+                            number_coordinates=number_coordinates,
                             student_answer=student_answer,
                             is_correct=False  # Taxminiy, logikani o'zgartirish mumkin
                         )
