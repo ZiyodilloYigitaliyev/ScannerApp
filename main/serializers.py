@@ -4,10 +4,10 @@ from .models import ProcessedTest, ProcessedTestResult
 class ProcessedTestResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProcessedTestResult
-        fields = ['question_id', 'student_answer', 'is_correct']
+        fields = "__all__"
 
 class ProcessedTestSerializer(serializers.ModelSerializer):
-    results = ProcessedTestResultSerializer(many=True, read_only=True)  # results ni olish
+    results = ProcessedTestResultSerializer(many=True, read_only=True)
 
     class Meta:
         model = ProcessedTest

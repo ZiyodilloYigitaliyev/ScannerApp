@@ -1,5 +1,4 @@
 from django.db import models
-from ckeditor.fields import RichTextField
 
 class QuestionList(models.Model):
     list_id = models.IntegerField(default=100000)
@@ -14,10 +13,19 @@ class Question(models.Model):
     subject = models.CharField(max_length=255, blank=True)
     text = models.TextField()
     options = models.TextField() 
-    question_id = models.IntegerField()
-    true_answer = models.CharField(max_length=1)
+    true_answer = models.CharField(max_length=1, default="")
     
     def __int__(self):
         return self.question_id
 
     
+class Zip(models.Model):
+    text = models.TextField()
+    options = models.TextField()
+    true_answer = models.CharField(max_length=255, null=True, blank=True)
+    category = models.CharField(max_length=255, null=True, blank=True)
+    subject = models.CharField(max_length=255, null=True, blank=True)
+
+    def __str__(self):
+        return self.text
+

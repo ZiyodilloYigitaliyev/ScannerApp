@@ -30,7 +30,6 @@ def upload_to_s3(file_path, s3_key):
     file_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_REGION_NAME}.amazonaws.com/{s3_key}"
     return file_url
 
-# Fayllar yo‘li
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.json')
 ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
@@ -78,7 +77,7 @@ def find_image_files(directory):
     image_files = []
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.lower().endswith(('.png', '.jpg', '.jpeg')):  # Faqat rasm fayllari
+            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
                 image_files.append(os.path.join(root, file))
     return image_files
 

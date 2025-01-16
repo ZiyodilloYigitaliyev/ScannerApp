@@ -8,7 +8,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     
-    # path("", include("question.urls")),
+    path("savol/", include("question.urls")),
     path("api/questions", GenerateRandomQuestionsView.as_view()),
     path('admin/', admin.site.urls),
     path('upload/', ProcessZipFileView.as_view(), name='process-zip'),

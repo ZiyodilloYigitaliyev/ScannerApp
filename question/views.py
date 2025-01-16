@@ -1,8 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import QuestionList, Question
-from .serializers import QuestionSerializer, QuestionListSerializer
+from .models import QuestionList, Question, Zip
+from .serializers import QuestionListSerializer, ZipSerializer
 from rest_framework.permissions import AllowAny
 import random
 import re
@@ -60,9 +60,9 @@ class HTMLFromZipView(APIView):
         s3_client = boto3.client(
             's3',
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_KEY
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
         )
-        bucket_name = settings.S3_BUCKET_NAME
+        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
 
         image_urls = {}
 
@@ -119,7 +119,7 @@ class HTMLFromZipView(APIView):
 
         # Savollarni bazaga saqlash
         for question_data in questions:
-            Question.objects.create(
+            Zip.objects.create(
                 text=question_data["text"],
                 options=question_data["options"],
                 true_answer=question_data["true_answer"],
@@ -128,12 +128,25 @@ class HTMLFromZipView(APIView):
             )
 
         return Response({"message": "Savollar ma'lumotlar bazasiga muvaffaqiyatli saqlandi."}, status=201)
-    
+
+class FilterQuestionsView(APIView):
+    def get(self, request, *args, **kwargs):
+        category = request.query_params.get('category')
+        subject = request.query_params.get('subject')
+        
+        questions = Zip.objects.all()
+        if category:
+            questions = questions.filter(category__iexact=category)
+        if subject:
+            questions = questions.filter(subject__iexact=subject)
+        
+        serializer = ZipSerializer(questions, many=True)
+        return Response({"questions": serializer.data}, status=status.HTTP_200_OK)    
 
 class ListQuestionsView(APIView):
     def get(self, request):
-        questions = Question.objects.all()
-        serializer = QuestionSerializer(questions, many=True)
+        questions = Zip.objects.all()
+        serializer = ZipSerializer(questions, many=True)
         grouped_questions = {}
         for question in serializer.data:
             category = question['category']
@@ -145,7 +158,7 @@ class ListQuestionsView(APIView):
 
 class DeleteAllQuestionsView(APIView):
     def delete(self, request):
-        Question.objects.all().delete()
+        Zip.objects.all().delete()
         return Response({"message": "All questions have been deleted successfully."}, status=status.HTTP_200_OK)
 
 

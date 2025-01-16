@@ -12,3 +12,4 @@ class  ProcessedTestResult(models.Model):
     student_answer = models.CharField(max_length=10)
     is_correct = models.BooleanField(default=False)
     processed_at = models.DateTimeField(auto_now_add=True)
+    score = models.IntegerField(default=0)
