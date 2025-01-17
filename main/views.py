@@ -15,6 +15,7 @@ from question.models import Question, QuestionList
 import shutil
 from rest_framework.permissions import AllowAny
 import logging
+from question.models import Zip
 
 logger = logging.getLogger(__name__)
 # S3 bilan ishlash uchun yordamchi funksiya
@@ -73,7 +74,6 @@ def extract_id(image_path, id_coordinates, threshold=200):
     return ''.join([id_result.get(f'n{i}', '?') for i in range(1, 5)])
 
 def find_image_files(directory):
-    """ Katalog ichidan rasm fayllarini topish """
     image_files = []
     for root, dirs, files in os.walk(directory):
         for file in files:
@@ -83,11 +83,6 @@ def find_image_files(directory):
 
 class ProcessZipFileView(APIView):
     permission_classes = [AllowAny]
-
-    def get(self, request, *args, **kwargs):
-        processed_tests = ProcessedTest.objects.all()
-        serializer = ProcessedTestSerializer(processed_tests, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         serializer = ZipFileSerializer(data=request.data)
@@ -99,7 +94,7 @@ class ProcessZipFileView(APIView):
         os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
 
         try:
-            # Zip faylni saqlash
+            # ZIP faylni saqlash
             with open(zip_path, 'wb') as f:
                 for chunk in zip_file.chunks():
                     f.write(chunk)
@@ -110,48 +105,64 @@ class ProcessZipFileView(APIView):
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(extracted_dir)
 
-            # JSON fayllarni yuklash
-            try:
-                coordinates = load_coordinates_from_json(COORDINATES_PATH)
-                id_coordinates = load_coordinates_from_json(ID_PATH)
-            except FileNotFoundError as e:
-                logger.error(f"Koordinata fayli topilmadi: {str(e)}")
-                raise ValueError("Koordinata fayli yoki ID fayli mavjud emas!")
-
             # Rasmlarni topish
             image_files = find_image_files(extracted_dir)
             if not image_files:
                 raise ValueError("Hech qanday rasm fayli topilmadi!")
 
+            # Ma'lumotlar bazasidan barcha savollarni olish
+            questions_db = Zip.objects.all()
+            questions_dict = {q.text: q for q in questions_db}
+
             # Rasmlar bilan ishlash
+            total_score = 0
             results = []
             with transaction.atomic():
                 for image_path in image_files:
-                    marked_answers = check_marked_circle(image_path, coordinates)
-                    student_id = extract_id(image_path, id_coordinates)
+                    marked_answers = check_marked_circle(image_path, load_coordinates_from_json(COORDINATES_PATH))
+                    student_id = extract_id(image_path, load_coordinates_from_json(ID_PATH))
 
-                    # Student test ma'lumotlarini saqlash
-                    student_test = ProcessedTest.objects.create(student_id=student_id)
-                    for question_id, student_answer in marked_answers.items():
-                        result = ProcessedTestResult.objects.create(
-                            student=student_test,
-                            question_id=question_id,
-                            student_answer=student_answer,
-                            is_correct=False  # Taxminiy, logikani o'zgartirish mumkin
-                        )
-                        results.append(result)
+                    # Har bir belgini to'g'ri javob bilan taqqoslash
+                    for question_text, student_answer in marked_answers.items():
+                        if question_text in questions_dict:
+                            question = questions_dict[question_text]
 
-                    # S3 ga yuklash
-                    try:
-                        s3_key = f"images/answers/{os.path.basename(image_path)}"
-                        s3_url = upload_to_s3(image_path, s3_key)
-                        student_test.image_url = s3_url
-                        student_test.save()
-                    except Exception as s3_error:
-                        logger.error(f"S3 ga yuklashda xatolik: {str(s3_error)}")
-                        raise ValueError("S3 ga yuklashda xatolik yuz berdi!")
+                            # Kategoriyaga ko'ra ballarni hisoblash
+                            score = 0
+                            if question.category == "Majburiy Fan 1":
+                                score = 1.1
+                            elif question.category == "Majburiy Fan 2":
+                                score = 1.1
+                            elif question.category == "Majburiy Fan 3":
+                                score = 1.1
+                            elif question.category == "Fan 1":
+                                score = 2.1
+                            elif question.category == "Fan 2":
+                                score = 3.1
 
-            return Response({"message": "Fayllar muvaffaqiyatli qayta ishladi."}, status=status.HTTP_201_CREATED)
+                            # Javobni to'g'riligi bo'yicha hisoblash
+                            is_correct = question.true_answer == student_answer
+                            if is_correct:
+                                total_score += score
+
+                            # Natijani saqlash
+                            result = ProcessedTestResult.objects.create(
+                                student_id=student_id,
+                                question_id=question.id,
+                                student_answer=student_answer,
+                                is_correct=is_correct,
+                                score=score if is_correct else 0
+                            )
+                            results.append(result)
+
+            # Umumiy natijalarni saqlash
+            ProcessedTest.objects.create(
+                student_id=student_id,
+                total_score=total_score,
+                image_url=upload_to_s3(image_path, f"images/answers/{os.path.basename(image_path)}")
+            )
+
+            return Response({"message": "Fayllar muvaffaqiyatli qayta ishladi.", "total_score": total_score}, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             logger.error(f"Xatolik yuz berdi: {str(e)}")
@@ -163,3 +174,4 @@ class ProcessZipFileView(APIView):
                 os.remove(zip_path)
             if os.path.exists(extracted_dir):
                 shutil.rmtree(extracted_dir)
+

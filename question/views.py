@@ -117,7 +117,6 @@ class HTMLFromZipView(APIView):
         if current_question:
             questions.append(current_question)
 
-        # Savollarni bazaga saqlash
         for question_data in questions:
             Zip.objects.create(
                 text=question_data["text"],
@@ -131,14 +130,18 @@ class HTMLFromZipView(APIView):
 
 class FilterQuestionsView(APIView):
     def get(self, request, *args, **kwargs):
+        id_list = request.query_params.get('id')
         category = request.query_params.get('category')
         subject = request.query_params.get('subject')
+
         
         questions = Zip.objects.all()
         if category:
             questions = questions.filter(category__iexact=category)
         if subject:
             questions = questions.filter(subject__iexact=subject)
+        if id_list:
+            questions = questions.filter(id__in=id_list)
         
         serializer = ZipSerializer(questions, many=True)
         return Response({"questions": serializer.data}, status=status.HTTP_200_OK)    
