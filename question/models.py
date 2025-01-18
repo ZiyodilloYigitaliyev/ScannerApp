@@ -25,6 +25,7 @@ class Zip(models.Model):
     true_answer = models.CharField(max_length=255, null=True, blank=True)
     category = models.CharField(max_length=255, null=True, blank=True)
     subject = models.CharField(max_length=255, null=True, blank=True)
+    date = models.DateField(auto_now_add=True)
 
     def __str__(self):
         return self.text

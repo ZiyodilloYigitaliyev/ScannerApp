@@ -2,7 +2,7 @@ from django.db import models
 from question.models import Zip
 
 class ProcessedTest(models.Model):
-    student_id = models.CharField(max_length=50)
+    student_id = models.BigAutoField(primary_key=True)
     total_score = models.FloatField(default=0)
     image_url = models.URLField(null=True, blank=True)
     

@@ -13,6 +13,7 @@ import boto3
 from bs4 import BeautifulSoup
 import zipfile
 import os
+from django.utils.dateparse import parse_datetime
 
 class HTMLFromZipView(APIView):
     parser_classes = [MultiPartParser, FormParser]
@@ -130,21 +131,31 @@ class HTMLFromZipView(APIView):
 
 class FilterQuestionsView(APIView):
     def get(self, request, *args, **kwargs):
-        id_list = request.query_params.get('id')
+        id_list = request.query_params.getlist('id')  # Idlarni ro'yxat ko'rinishida olish
         category = request.query_params.get('category')
         subject = request.query_params.get('subject')
+        date = request.query_params.get('date')
 
-        
         questions = Zip.objects.all()
+        
         if category:
             questions = questions.filter(category__iexact=category)
         if subject:
             questions = questions.filter(subject__iexact=subject)
         if id_list:
             questions = questions.filter(id__in=id_list)
-        
+        if date:
+            try:
+                parsed_date = parse_datetime(date)
+                if parsed_date:
+                    questions = questions.filter(date__date=parsed_date.date())
+                else:
+                    return Response({"error": "Invalid date format. Use ISO 8601 format."}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = ZipSerializer(questions, many=True)
-        return Response({"questions": serializer.data}, status=status.HTTP_200_OK)    
+        return Response({"questions": serializer.data}, status=status.HTTP_200_OK)   
 
 class ListQuestionsView(APIView):
     def get(self, request):
