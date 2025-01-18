@@ -2,6 +2,7 @@ from django.db import models
 
 class QuestionList(models.Model):
     list_id = models.IntegerField(default=100000)
+    questions_class = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __int__(self):
