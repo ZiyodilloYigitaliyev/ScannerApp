@@ -207,7 +207,7 @@ class GenerateRandomQuestionsView(APIView):
             questions_num = request_data.get('num', {})
             questions_data = request_data.get('data', {})
             additional_value = questions_num.get('additional_value')
-            questions_sinf = request_data.get('class')
+            questions_class = questions_num.get('class')
 
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
             majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
@@ -216,7 +216,6 @@ class GenerateRandomQuestionsView(APIView):
             fan_2 = questions_data.get('Fan_2', [])
 
             final_lists = []
-
             for _ in range(additional_value):
                 new_list = {
                     "Majburiy_Fan_1": self.clean_questions(self.get_random_items(majburiy_fan_1, 10)),
@@ -249,7 +248,7 @@ class GenerateRandomQuestionsView(APIView):
                 })
 
                 try:
-                    question_list = QuestionList.objects.create(list_id=list_id)
+                    question_list = QuestionList.objects.create(list_id=list_id, questions_class=questions_class)
                     for category, questions in final_questions.items():
                         for question in questions:
                             Question.objects.create(
