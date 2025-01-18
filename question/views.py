@@ -230,8 +230,6 @@ class GenerateRandomQuestionsView(APIView):
                                     subject=question.get("subject", ""),
                                     text=question.get("text", ""),
                                     options=question.get("options", ""),
-                                    image=question.get("image", None),
-                                    question_id=question.get("order"),
                                     true_answer=question.get("true_answer", ""),
                                 )
                     except Exception as e:
