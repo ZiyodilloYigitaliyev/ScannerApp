@@ -179,96 +179,76 @@ class DeleteAllQuestionsView(APIView):
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
-    def get(self, request):
-        try:    
-            question_lists = QuestionList.objects.prefetch_related('questions').all()
-            serializer = QuestionListSerializer(question_lists, many=True)
-
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-
-    
-    def get_next_list_id(self):
-        last_id_obj, created = QuestionList.objects.get_or_create()
-        next_id = last_id_obj.list_id + 1
-        last_id_obj.list_id = next_id
-        last_id_obj.save()
-        return next_id
-       
 
     def post(self, request):
         try:
-            if isinstance(request.data, list):
-                request_data = request.data[0]
-            else:
-                request_data = request.data
-            questions_num = request_data.get('num', {})
-            questions_data = request_data.get('data', {})
-            additional_value = questions_num.get('additional_value')
-            questions_class = questions_num.get('class')
-
-            majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
-            majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
-            majburiy_fan_3 = questions_data.get('Majburiy_Fan_3', [])
-            fan_1 = questions_data.get('Fan_1', [])
-            fan_2 = questions_data.get('Fan_2', [])
+            request_data = request.data
 
             final_lists = []
-            for _ in range(additional_value):
-                new_list = {
-                    "Majburiy_Fan_1": (self.get_random_items(majburiy_fan_1, 10)),
-                    "Majburiy_Fan_2": (self.get_random_items(majburiy_fan_2, 10)),
-                    "Majburiy_Fan_3": (self.get_random_items(majburiy_fan_3, 10)),
-                    "Fan_1": (self.get_random_items(fan_1, 30)),
-                    "Fan_2": (self.get_random_items(fan_2, 30)),
-                }
+            for item in request_data:
+                questions_num = item.get("num", {})
+                questions_data = item.get("data", {})
+                additional_value = questions_num.get("additional_value", 0)
+                questions_class = questions_num.get("class", None)
 
-                list_id = self.get_next_list_id()
-                final_questions = {category: [] for category in new_list.keys()}
-                global_order_counter = 1
+                # Har bir ro'yxat uchun ishlov berish
+                for _ in range(additional_value):
+                    list_id = self.get_next_list_id()
 
-                for category, questions in new_list.items():
-                    for question in questions:
-                        final_questions[category].append({
-                            "category": category,
-                            "subject": question.get("subject", ""),
-                            "text": question["text"],
-                            "options": question.get("options", ""),
-                            "true_answer": question.get("true_answer", ""),
-                            "image": question.get("image", None),
-                            "order": global_order_counter,
-                        })
-                        global_order_counter += 1
+                    # Har bir kategoriya bo'yicha savollarni qayta ishlash
+                    final_questions = {key: [] for key in questions_data.keys()}
+                    global_order_counter = 1
 
-                final_lists.append({
-                    "list_id": list_id,
-                    "questions": final_questions
-                })
-
-                try:
-                    question_list = QuestionList.objects.create(list_id=list_id, questions_class=questions_class)
-                    for category, questions in final_questions.items():
+                    for category, questions in questions_data.items():
                         for question in questions:
-                            Question.objects.create(
-                                list=question_list,
-                                category=category,
-                                subject=question.get('subject', ""),
-                                text=question.get('text', ""),
-                                options=question.get('options', ""),
-                                image=question.get('image', None),
-                                question_id=question.get('order'),
-                                true_answer=question.get('true_answer', ""),
-                            )
-                except Exception as e:
-                    print(f"Error during database save: {e}")
-                    return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
+                            final_questions[category].append({
+                                "category": category,
+                                "subject": question.get("subject", ""),
+                                "text": question["text"],
+                                "options": question.get("options", ""),
+                                "true_answer": question.get("true_answer", ""),
+                                "image": question.get("image", None),
+                                "order": global_order_counter,
+                            })
+                            global_order_counter += 1
+
+                    # Natijalarni saqlash
+                    final_lists.append({
+                        "list_id": list_id,
+                        "questions_class": questions_class,
+                        "questions": final_questions,
+                    })
+
+                    # Ma'lumotlar bazasiga saqlash
+                    try:
+                        question_list = QuestionList.objects.create(list_id=list_id, questions_class=questions_class)
+                        for category, questions in final_questions.items():
+                            for question in questions:
+                                Question.objects.create(
+                                    list=question_list,
+                                    category=category,
+                                    subject=question.get("subject", ""),
+                                    text=question.get("text", ""),
+                                    options=question.get("options", ""),
+                                    image=question.get("image", None),
+                                    question_id=question.get("order"),
+                                    true_answer=question.get("true_answer", ""),
+                                )
+                    except Exception as e:
+                        print(f"Error during database save: {e}")
+                        return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
 
             return Response(final_lists, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+    def get_next_list_id(self):
+        last_list = QuestionList.objects.last()
+        next_id = last_list.list_id + 1 if last_list else 100001
+        QuestionList.objects.create(list_id=next_id)
+        return next_id
+
 
     @staticmethod
     def get_random_items(source_list, count):
