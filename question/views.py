@@ -218,11 +218,11 @@ class GenerateRandomQuestionsView(APIView):
             final_lists = []
             for _ in range(additional_value):
                 new_list = {
-                    "Majburiy_Fan_1": self.clean_questions(self.get_random_items(majburiy_fan_1, 10)),
-                    "Majburiy_Fan_2": self.clean_questions(self.get_random_items(majburiy_fan_2, 10)),
-                    "Majburiy_Fan_3": self.clean_questions(self.get_random_items(majburiy_fan_3, 10)),
-                    "Fan_1": self.clean_questions(self.get_random_items(fan_1, 30)),
-                    "Fan_2": self.clean_questions(self.get_random_items(fan_2, 30)),
+                    "Majburiy_Fan_1": (self.get_random_items(majburiy_fan_1, 10)),
+                    "Majburiy_Fan_2": (self.get_random_items(majburiy_fan_2, 10)),
+                    "Majburiy_Fan_3": (self.get_random_items(majburiy_fan_3, 10)),
+                    "Fan_1": (self.get_random_items(fan_1, 30)),
+                    "Fan_2": (self.get_random_items(fan_2, 30)),
                 }
 
                 list_id = self.get_next_list_id()
@@ -277,8 +277,8 @@ class GenerateRandomQuestionsView(APIView):
         count = min(count, len(source_list))
         return random.sample(source_list, count)
 
-    @staticmethod
-    def clean_questions(questions):
-        for question in questions:
-            question['text'] = re.sub(r'^\d+\.\s*', '', question['text'])
-        return questions
+    # @staticmethod
+    # def clean_questions(questions):
+    #     for question in questions:
+    #         question['text'] = re.sub(r'^\d+\.\s*', '', question['text'])
+    #     return questions
