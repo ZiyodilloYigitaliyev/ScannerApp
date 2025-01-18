@@ -192,8 +192,8 @@ class GenerateRandomQuestionsView(APIView):
     
     def get_next_list_id(self):
         last_id_obj, created = QuestionList.objects.get_or_create(id=1)
-        next_id = last_id_obj.last_id + 1
-        last_id_obj.last_id = next_id
+        next_id = last_id_obj.list_id + 1
+        last_id_obj.list_id = next_id
         last_id_obj.save()
         return next_id
        
