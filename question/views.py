@@ -14,6 +14,8 @@ from bs4 import BeautifulSoup
 import zipfile
 import os
 from django.utils.dateparse import parse_datetime
+from datetime import *
+
 
 class HTMLFromZipView(APIView):
     parser_classes = [MultiPartParser, FormParser]
@@ -185,14 +187,32 @@ class GenerateRandomQuestionsView(APIView):
             list_id = request.query_params.get('list_id', None)
             questions_class = request.query_params.get('questions_class', None)
             limit = request.query_params.get('limit', None)
+            date = request.query_params.get('date', None)  # Date uchun query param
 
+            # Barcha question_lists ma'lumotlarini olish
             question_lists = QuestionList.objects.prefetch_related('questions').all()
 
+            # list_id bo'yicha filter
             if list_id:
                 question_lists = question_lists.filter(list_id=list_id)
+            
+            # questions_class bo'yicha filter
             if questions_class:
                 question_lists = question_lists.filter(questions_class=questions_class)
+            
+            # date bo'yicha filter
+            if date:
+                try:
+                    # ISO 8601 formatdagi datetime qiymatini parse qilish
+                    date_time = datetime.fromisoformat(date.replace("Z", "+00:00"))
+                    question_lists = question_lists.filter(created_at=date_time)
+                except ValueError:
+                    return Response(
+                        {"error": "Invalid date format. Use ISO 8601 format: YYYY-MM-DDTHH:MM:SS.ssssssZ."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
+            # Ma'lumotlarni tayyorlash
             response_data = []
             for question_list in question_lists:
                 list_data = {
@@ -222,7 +242,6 @@ class GenerateRandomQuestionsView(APIView):
                         "list": question_list.id
                     })
 
-                # Yagona ro'yxatni to'ldirish
                 response_data.append(list_data)
 
             # Faqat oxirgi ro'yxatni qaytarish
@@ -230,6 +249,8 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
     def post(self, request):
