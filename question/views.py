@@ -256,7 +256,7 @@ class GenerateRandomQuestionsView(APIView):
                         print(f"Error during database save: {e}")
                         return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response(final_lists, status=status.HTTP_201_CREATED)
+            return Response({"success": "Malumotlar Muvofaqiyatli Saqlandi"}, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
