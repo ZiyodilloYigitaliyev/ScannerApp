@@ -187,7 +187,8 @@ class GenerateRandomQuestionsView(APIView):
             list_id = request.query_params.get('list_id', None)
             questions_class = request.query_params.get('questions_class', None)
             limit = request.query_params.get('limit', None)
-            date = request.query_params.get('date', None)  # Date uchun query param
+            date = request.query_params.get('date', None)
+            questions_filter = request.query_params.get('questions_filter', None)  # Yangi filter qo'shildi
 
             # Barcha question_lists ma'lumotlarini olish
             question_lists = QuestionList.objects.prefetch_related('questions').all()
@@ -219,28 +220,31 @@ class GenerateRandomQuestionsView(APIView):
                     "list_id": question_list.list_id,
                     "questions_class": question_list.questions_class,
                     "created_at": question_list.created_at,
-                    "questions": []
                 }
-                questions = question_list.questions.all()
 
-                # Limitni qo'llash
-                if limit:
-                    try:
-                        limit = int(limit)
-                        questions = questions[:limit]
-                    except ValueError:
-                        return Response({"error": "Invalid limit value. It should be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+                # questions_filter ga ko'ra "questions" ni qo'shish
+                if not questions_filter or questions_filter.lower() != "false":
+                    list_data["questions"] = []
+                    questions = question_list.questions.all()
 
-                for question in questions:
-                    list_data["questions"].append({
-                        "id": question.id,
-                        "category": question.category,
-                        "subject": question.subject,
-                        "text": question.text,
-                        "options": question.options,
-                        "true_answer": question.true_answer,
-                        "list": question_list.id
-                    })
+                    # Limitni qo'llash
+                    if limit:
+                        try:
+                            limit = int(limit)
+                            questions = questions[:limit]
+                        except ValueError:
+                            return Response({"error": "Invalid limit value. It should be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+                    for question in questions:
+                        list_data["questions"].append({
+                            "id": question.id,
+                            "category": question.category,
+                            "subject": question.subject,
+                            "text": question.text,
+                            "options": question.options,
+                            "true_answer": question.true_answer,
+                            "list": question_list.id
+                        })
 
                 response_data.append(list_data)
 
@@ -249,6 +253,7 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 
