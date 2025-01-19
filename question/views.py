@@ -181,7 +181,11 @@ class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        """
+        Savollar ro'yxatini olish uchun GET metodi.
+        """
         try:
+            # So'rov parametrlari orqali filtrlarni olish
             list_id = request.query_params.get('list_id', None)
             questions_class = request.query_params.get('questions_class', None)
 
@@ -193,12 +197,36 @@ class GenerateRandomQuestionsView(APIView):
             if questions_class:
                 question_lists = question_lists.filter(questions_class=questions_class)
 
-            # Serializatsiya qilish
-            serializer = QuestionListSerializer(question_lists, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            # Javobni shakllantirish
+            response_data = []
+            for question_list in question_lists:
+                list_data = {
+                    "list_id": question_list.list_id,
+                    "questions_class": question_list.questions_class,
+                    "created_at": question_list.created_at,
+                    "questions": []
+                }
+                questions = question_list.questions.all()
+                for question in questions:
+                    list_data["questions"].append({
+                        "id": question.id,
+                        "category": question.category,
+                        "subject": question.subject,
+                        "text": question.text,
+                        "options": question.options,
+                        "true_answer": question.true_answer,
+                        "list": question_list.id
+                    })
+
+                # Yagona ro'yxatni to'ldirish
+                response_data.append(list_data)
+
+            # Faqat oxirgi ro'yxatni qaytarish
+            return Response(response_data[-1] if response_data else {}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
 
     def post(self, request):
         try:
