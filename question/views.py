@@ -181,15 +181,11 @@ class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        """
-        Savollar ro'yxatini olish uchun GET metodi.
-        """
         try:
-            # So'rov parametrlari orqali filtrlarni olish
             list_id = request.query_params.get('list_id', None)
             questions_class = request.query_params.get('questions_class', None)
+            limit = request.query_params.get('limit', None)
 
-            # Savollar ro'yxatini olish
             question_lists = QuestionList.objects.prefetch_related('questions').all()
 
             if list_id:
@@ -197,7 +193,6 @@ class GenerateRandomQuestionsView(APIView):
             if questions_class:
                 question_lists = question_lists.filter(questions_class=questions_class)
 
-            # Javobni shakllantirish
             response_data = []
             for question_list in question_lists:
                 list_data = {
@@ -207,6 +202,15 @@ class GenerateRandomQuestionsView(APIView):
                     "questions": []
                 }
                 questions = question_list.questions.all()
+
+                # Limitni qo'llash
+                if limit:
+                    try:
+                        limit = int(limit)
+                        questions = questions[:limit]
+                    except ValueError:
+                        return Response({"error": "Invalid limit value. It should be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+
                 for question in questions:
                     list_data["questions"].append({
                         "id": question.id,
