@@ -235,7 +235,7 @@ class GenerateRandomQuestionsView(APIView):
                         except ValueError:
                             return Response({"error": "Invalid limit value. It should be an integer."}, status=status.HTTP_400_BAD_REQUEST)
 
-                    for question in questions:
+                    for idx, question in enumerate (questions, start=1):
                         list_data["questions"].append({
                             "id": question.id,
                             "category": question.category,
@@ -243,7 +243,8 @@ class GenerateRandomQuestionsView(APIView):
                             "text": question.text,
                             "options": question.options,
                             "true_answer": question.true_answer,
-                            "list": question_list.id
+                            "list": question_list.id,
+                            "order": idx,
                         })
 
                 response_data.append(list_data)
@@ -253,10 +254,6 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
 
     def post(self, request):
         try:
@@ -295,6 +292,7 @@ class GenerateRandomQuestionsView(APIView):
                         "list_id": list_id,
                         "questions_class": questions_class,
                         "questions": final_questions,
+                        "order": global_order_counter,
                     })
 
                     # Ma'lumotlar bazasiga saqlash
@@ -309,6 +307,7 @@ class GenerateRandomQuestionsView(APIView):
                                     text=question.get("text", ""),
                                     options=question.get("options", ""),
                                     true_answer=question.get("true_answer", ""),
+                                    global_order_counter=global_order_counter,
                                 )
                     except Exception as e:
                         print(f"Error during database save: {e}")
