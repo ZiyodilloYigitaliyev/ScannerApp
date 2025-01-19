@@ -180,6 +180,26 @@ class DeleteAllQuestionsView(APIView):
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
 
+    def get(self, request):
+        try:
+            list_id = request.query_params.get('list_id', None)
+            questions_class = request.query_params.get('questions_class', None)
+
+            # Savollar ro'yxatini olish
+            question_lists = QuestionList.objects.prefetch_related('questions').all()
+
+            if list_id:
+                question_lists = question_lists.filter(list_id=list_id)
+            if questions_class:
+                question_lists = question_lists.filter(questions_class=questions_class)
+
+            # Serializatsiya qilish
+            serializer = QuestionListSerializer(question_lists, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
     def post(self, request):
         try:
             request_data = request.data
@@ -240,6 +260,7 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
 
     def get_next_list_id(self):
         last_list = QuestionList.objects.last()
