@@ -15,6 +15,7 @@ class Question(models.Model):
     text = models.TextField()
     options = models.TextField() 
     true_answer = models.CharField(max_length=1, default="")
+    order = models.IntegerField(default=0)
     
     def __int__(self):
         return self.question_id

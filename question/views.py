@@ -15,7 +15,7 @@ import zipfile
 import os
 from django.utils.dateparse import parse_datetime
 from datetime import *
-from question import models
+from django.db.models import Max
 
 
 class HTMLFromZipView(APIView):
@@ -273,7 +273,6 @@ class GenerateRandomQuestionsView(APIView):
 
                     # Har bir kategoriya bo'yicha savollarni qayta ishlash
                     final_questions = {key: [] for key in questions_data.keys()}
-                    global_order_counter = 1
 
                     for category, questions in questions_data.items():
                         for question in questions:
@@ -284,16 +283,13 @@ class GenerateRandomQuestionsView(APIView):
                                 "options": question.get("options", ""),
                                 "true_answer": question.get("true_answer", ""),
                                 "image": question.get("image", None),
-                                "order": global_order_counter,
                             })
-                            global_order_counter += 1
 
                     # Natijalarni saqlash
                     final_lists.append({
                         "list_id": list_id,
                         "questions_class": questions_class,
                         "questions": final_questions,
-                        "order": global_order_counter,
                     })
 
                     # Ma'lumotlar bazasiga saqlash
@@ -308,7 +304,6 @@ class GenerateRandomQuestionsView(APIView):
                                     text=question.get("text", ""),
                                     options=question.get("options", ""),
                                     true_answer=question.get("true_answer", ""),
-                                    global_order_counter=global_order_counter,
                                 )
                     except Exception as e:
                         print(f"Error during database save: {e}")
@@ -321,10 +316,11 @@ class GenerateRandomQuestionsView(APIView):
 
 
     def get_next_list_id(self):
-    # Ma'lumotlar bazasidagi eng katta list_id ni topish
-        last_list_id = QuestionList.objects.aggregate(max_id=models.Max('list_id'))['max_id']
+        # Ma'lumotlar bazasidagi eng katta list_id ni topish
+        last_list_id = QuestionList.objects.aggregate(max_id=Max('list_id'))['max_id']
         next_id = (last_list_id or 100000) + 1  # Agar mavjud bo'lmasa, 100001 bilan boshlash
         return next_id
+
 
 
 
