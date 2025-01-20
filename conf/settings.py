@@ -31,8 +31,6 @@ INSTALLED_APPS = [
     'question',
     'storages',
     "corsheaders",
-    "ckeditor",
-    "ckeditor_uploader",
     'rest_framework',
     
 ]
