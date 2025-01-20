@@ -26,13 +26,24 @@ class HTMLFromZipView(APIView):
         style_tags = soup.find_all("style")
         red_classes = []
 
-        # Har qanday qizil rangdagi klasslarni topish
         for style_tag in style_tags:
             styles = style_tag.string
             if styles:
-                matches = re.findall(r'\.(\w+)\s*{[^}]*color:\s*(#ff0000|rgb\(255,\s*0,\s*0\)|rgba\(255,\s*0,\s*0,\s*[\d\.]+\))\s*;?', styles, re.IGNORECASE)
+                matches = re.findall(
+                    r'\.(\w+)\s*{[^}]*color:\s*(#ff0000|rgb\(255,\s*0,\s*0\)|rgba\(255,\s*0,\s*0,\s*[\d\.]+\))\s*;?',
+                    styles,
+                    re.IGNORECASE
+                )
                 red_classes.extend([match[0] for match in matches])
         return red_classes
+
+    def extract_true_answer(self, p_tag, red_classes):
+
+        for span_tag in p_tag.find_all("span"):
+            span_classes = span_tag.get("class", [])
+            if any(cls in red_classes for cls in span_classes):
+                return span_tag.text.strip()
+        return None
 
     def upload_image_to_s3(self, image_name, image_data):
         """
@@ -241,11 +252,20 @@ class GenerateRandomQuestionsView(APIView):
             # Ma'lumotlarni tayyorlash
             response_data = []
             for question_list in question_lists:
+                # Har xil category va subject qiymatlarini olish
+                categories = list(
+                    question_list.questions.values_list("category", flat=True).distinct()
+                )
+                subjects = list(
+                    question_list.questions.values_list("subject", flat=True).distinct()
+                )
+
+                # Natija uchun ma'lumotlarni tayyorlash
                 list_data = {
                     "list_id": question_list.list_id,
                     "questions_class": question_list.questions_class,
-                    "category": question_list.questions.first().category if question_list.questions.exists() else None,
-                    "subject": question_list.questions.first().subject if question_list.questions.exists() else None,
+                    "category": {f"category_{idx + 1}": category for idx, category in enumerate(categories)},
+                    "subject": {f"subject_{idx + 1}": subject for idx, subject in enumerate(subjects)},
                     "created_at": question_list.created_at,
                 }
 
@@ -273,6 +293,7 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
     def post(self, request):
