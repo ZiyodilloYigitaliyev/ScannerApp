@@ -15,6 +15,7 @@ import zipfile
 import os
 from django.utils.dateparse import parse_datetime
 from datetime import *
+from question import models
 
 
 class HTMLFromZipView(APIView):
@@ -320,10 +321,11 @@ class GenerateRandomQuestionsView(APIView):
 
 
     def get_next_list_id(self):
-        last_list = QuestionList.objects.last()
-        next_id = last_list.list_id + 1 if last_list else 100001
-        QuestionList.objects.create(list_id=next_id)
+    # Ma'lumotlar bazasidagi eng katta list_id ni topish
+        last_list_id = QuestionList.objects.aggregate(max_id=models.Max('list_id'))['max_id']
+        next_id = (last_list_id or 100000) + 1  # Agar mavjud bo'lmasa, 100001 bilan boshlash
         return next_id
+
 
 
     @staticmethod
