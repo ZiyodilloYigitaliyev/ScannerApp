@@ -24,20 +24,90 @@ class HTMLFromZipView(APIView):
 
     def find_red_class(self, soup):
         style_tags = soup.find_all("style")
+        red_classes = []
+
+        # Har qanday qizil rangdagi klasslarni topish
         for style_tag in style_tags:
             styles = style_tag.string
             if styles:
-                matches = re.findall(r'\.(\w+)\s*{[^}]*color:\s*#ff0000\s*;?', styles, re.IGNORECASE)
-                if matches:
-                    return matches[0]
-        return None
+                matches = re.findall(r'\.(\w+)\s*{[^}]*color:\s*(#ff0000|rgb\(255,\s*0,\s*0\)|rgba\(255,\s*0,\s*0,\s*[\d\.]+\))\s*;?', styles, re.IGNORECASE)
+                red_classes.extend([match[0] for match in matches])
+        return red_classes
+
+    def upload_image_to_s3(self, image_name, image_data):
+        """
+        Rasmlarni S3 bucketga yuklash va URLni qaytarish.
+        """
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+        )
+        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+        temp_file = NamedTemporaryFile(delete=False)
+        temp_file.write(image_data)
+        temp_file.close()
+        s3_key = f'images/{os.path.basename(image_name)}'
+        s3_client.upload_file(temp_file.name, bucket_name, s3_key)
+        os.unlink(temp_file.name)
+        return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
+
+    def process_html(self, html_file, images, category, subject):
+        """
+        HTML faylni qayta ishlash va savollarni ajratib olish.
+        """
+        soup = BeautifulSoup(html_file, 'html.parser')
+        red_class = self.find_red_class(soup)
+        image_urls = {img_name: self.upload_image_to_s3(img_name, img_data) for img_name, img_data in images.items()}
+
+        # Rasmlarning `src` atributlarini yangilash
+        for img_tag in soup.find_all('img'):
+            img_src = img_tag.get('src')
+            if img_src in image_urls:
+                img_tag['src'] = image_urls[img_src]
+
+        # Savollarni ajratib olish
+        questions = []
+        current_question = None
+
+        for p_tag in soup.find_all('p'):
+            text = p_tag.get_text(strip=True)
+            if not text:
+                continue
+
+            # Yangi savolni boshlash
+            if text[0].isdigit() and '.' in text:
+                if current_question:
+                    questions.append(current_question)
+                current_question = {
+                    "text": str(p_tag),
+                    "options": "",
+                    "true_answer": None,
+                    "category": category,
+                    "subject": subject
+                }
+            # Variantlarni qo'shish
+            elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
+                current_question["options"] += str(p_tag)
+
+                # To'g'ri javobni aniqlash
+                if red_class:
+                    for span_tag in p_tag.find_all("span", class_=red_class):
+                        answer_text = span_tag.get_text(strip=True)
+                        if answer_text.startswith(("A", "B", "C", "D")):
+                            current_question["true_answer"] = answer_text[0]
+
+        # Oxirgi savolni qo'shish
+        if current_question:
+            questions.append(current_question)
+
+        return questions
 
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
         if not zip_file:
             return Response({"error": "ZIP fayl topilmadi"}, status=400)
 
-        # Kategoriya va mavzu tekshiruvi
         category = request.data.get('category')
         subject = request.data.get('subject')
 
@@ -47,7 +117,6 @@ class HTMLFromZipView(APIView):
                 status=400
             )
 
-        # ZIP faylni ochish
         with zipfile.ZipFile(zip_file, 'r') as z:
             html_file = None
             images = {}
@@ -61,67 +130,10 @@ class HTMLFromZipView(APIView):
             if not html_file:
                 return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
 
-        # Rasmlarni yuklash uchun S3 sozlamalari
-        s3_client = boto3.client(
-            's3',
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
-        )
-        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+        # HTMLni qayta ishlash
+        questions = self.process_html(html_file, images, category, subject)
 
-        image_urls = {}
-
-        def upload_image_to_s3(image_name, image_data):
-            temp_file = NamedTemporaryFile(delete=False)
-            temp_file.write(image_data)
-            temp_file.close()
-            s3_key = f'images/{os.path.basename(image_name)}'
-            s3_client.upload_file(temp_file.name, bucket_name, s3_key)
-            os.unlink(temp_file.name)
-            return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
-
-        for img_name, img_data in images.items():
-            if img_name not in image_urls:
-                image_urls[img_name] = upload_image_to_s3(img_name, img_data)
-
-        # HTML faylni qayta ishlash
-        soup = BeautifulSoup(html_file, 'html.parser')
-        red_class = self.find_red_class(soup)
-        questions = []
-        current_question = None
-
-        for p_tag in soup.find_all('p'):
-            text = p_tag.get_text(strip=True)
-            if not text:
-                continue
-
-            for img_tag in p_tag.find_all('img'):
-                img_src = img_tag.get('src')
-                if img_src in image_urls:
-                    img_tag['src'] = image_urls[img_src]
-
-            if text[0].isdigit() and '.' in text:
-                if current_question:
-                    questions.append(current_question)
-                current_question = {
-                    "text": str(p_tag),
-                    "options": "",
-                    "true_answer": None,
-                    "category": category,
-                    "subject": subject
-                }
-            elif text.startswith(("A)", "B)", "C)", "D)")):
-                if current_question:
-                    current_question["options"] += str(p_tag)
-
-                    if red_class:
-                        span_tags = p_tag.find_all("span", class_=red_class)
-                        if span_tags:
-                            current_question["true_answer"] = text[0]
-
-        if current_question:
-            questions.append(current_question)
-
+        # Ma'lumotlar bazasiga saqlash
         for question_data in questions:
             Zip.objects.create(
                 text=question_data["text"],
@@ -132,6 +144,8 @@ class HTMLFromZipView(APIView):
             )
 
         return Response({"message": "Savollar ma'lumotlar bazasiga muvaffaqiyatli saqlandi."}, status=201)
+
+
 
 class FilterQuestionsView(APIView):
     def get(self, request, *args, **kwargs):
@@ -216,31 +230,29 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
+            # Limitni qo'llash - faqat `question_lists`ga
+            if limit:
+                try:
+                    limit = int(limit)
+                    question_lists = question_lists[:limit]
+                except ValueError:
+                    return Response({"error": "Invalid limit value. It should be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+
             # Ma'lumotlarni tayyorlash
             response_data = []
             for question_list in question_lists:
                 list_data = {
                     "list_id": question_list.list_id,
                     "questions_class": question_list.questions_class,
+                    "category": question_list.questions.first().category if question_list.questions.exists() else None,
+                    "subject": question_list.questions.first().subject if question_list.questions.exists() else None,
                     "created_at": question_list.created_at,
                 }
 
                 # question_filter ga ko'ra `questions`ni qo'shish yoki tashlab ketish
-                if question_filter and question_filter.lower() == "true":
-                    # Agar `question_filter=true` bo'lsa, `questions`ni qo'shmaslik
-                    pass
-                else:
-                    # Agar `question_filter=false` yoki query parametri yo'q bo'lsa, `questions`ni qo'shish
+                if not (question_filter and question_filter.lower() == "true"):
                     list_data["questions"] = []
                     questions = question_list.questions.all()
-
-                    # Limitni qo'llash
-                    if limit:
-                        try:
-                            limit = int(limit)
-                            questions = questions[:limit]
-                        except ValueError:
-                            return Response({"error": "Invalid limit value. It should be an integer."}, status=status.HTTP_400_BAD_REQUEST)
 
                     for idx, question in enumerate(questions, start=1):
                         list_data["questions"].append({
@@ -261,9 +273,6 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
 
 
     def post(self, request):
