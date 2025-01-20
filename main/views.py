@@ -47,7 +47,12 @@ def check_marked_circle(image_path, coordinates, threshold=200):
         for option, coord in options.items():
             if not isinstance(coord, list) or len(coord) != 2:
                 raise ValueError(f"Noto'g'ri koordinata formati: {coord}")
-            x, y = map(int, coord)
+            try:
+                # Float koordinatalarni int formatga o'tkazish
+                x, y = map(int, coord)
+            except ValueError:
+                raise ValueError(f"Noto'g'ri koordinata qiymati: {coord}")
+            
             radius = 5
             roi = image[y - radius:y + radius, x - radius:x + radius]
             mean_brightness = np.mean(roi)
@@ -55,6 +60,7 @@ def check_marked_circle(image_path, coordinates, threshold=200):
                 marked_answers[question] = option
                 break
     return marked_answers
+
 
 def extract_id(image_path, id_coordinates, threshold=200):
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
