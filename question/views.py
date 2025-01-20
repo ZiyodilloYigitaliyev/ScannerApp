@@ -16,6 +16,7 @@ import os
 from django.utils.dateparse import parse_datetime
 from datetime import *
 from django.db.models import Max
+from django.utils.timezone import make_aware
 
 
 class HTMLFromZipView(APIView):
@@ -189,7 +190,7 @@ class GenerateRandomQuestionsView(APIView):
             questions_class = request.query_params.get('questions_class', None)
             limit = request.query_params.get('limit', None)
             date = request.query_params.get('date', None)
-            questions_filter = request.query_params.get('questions_filter', None)  # Yangi filter qo'shildi
+            question_filter = request.query_params.get('question_filter', None)  # Yangi query filter
 
             # Barcha question_lists ma'lumotlarini olish
             question_lists = QuestionList.objects.prefetch_related('questions').all()
@@ -197,20 +198,21 @@ class GenerateRandomQuestionsView(APIView):
             # list_id bo'yicha filter
             if list_id:
                 question_lists = question_lists.filter(list_id=list_id)
-            
+
             # questions_class bo'yicha filter
             if questions_class:
                 question_lists = question_lists.filter(questions_class=questions_class)
-            
+
             # date bo'yicha filter
             if date:
                 try:
-                    # ISO 8601 formatdagi datetime qiymatini parse qilish
-                    date_time = datetime.fromisoformat(date.replace("Z", "+00:00"))
-                    question_lists = question_lists.filter(created_at=date_time)
+                    # Sana formatini tekshirish va filterlash
+                    naive_date_time = datetime.strptime(date, "%Y-%m-%d")
+                    date_time = make_aware(naive_date_time)
+                    question_lists = question_lists.filter(created_at__date=date_time.date())
                 except ValueError:
                     return Response(
-                        {"error": "Invalid date format. Use ISO 8601 format: YYYY-MM-DDTHH:MM:SS.ssssssZ."},
+                        {"error": "Invalid date format. Use YYYY-MM-DD."},
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
@@ -223,8 +225,12 @@ class GenerateRandomQuestionsView(APIView):
                     "created_at": question_list.created_at,
                 }
 
-                # questions_filter ga ko'ra "questions" ni qo'shish
-                if not questions_filter or questions_filter.lower() != "false":
+                # question_filter ga ko'ra `questions`ni qo'shish yoki tashlab ketish
+                if question_filter and question_filter.lower() == "true":
+                    # Agar `question_filter=true` bo'lsa, `questions`ni qo'shmaslik
+                    pass
+                else:
+                    # Agar `question_filter=false` yoki query parametri yo'q bo'lsa, `questions`ni qo'shish
                     list_data["questions"] = []
                     questions = question_list.questions.all()
 
@@ -250,11 +256,14 @@ class GenerateRandomQuestionsView(APIView):
 
                 response_data.append(list_data)
 
-            # Hamma ma'lumotlarni qaytarish
+            # Barcha ma'lumotlarni qaytarish
             return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 
 
     def post(self, request):
