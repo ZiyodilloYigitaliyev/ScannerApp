@@ -236,7 +236,7 @@ class GenerateRandomQuestionsView(APIView):
                         except ValueError:
                             return Response({"error": "Invalid limit value. It should be an integer."}, status=status.HTTP_400_BAD_REQUEST)
 
-                    for idx, question in enumerate (questions, start=1):
+                    for idx, question in enumerate(questions, start=1):
                         list_data["questions"].append({
                             "id": question.id,
                             "category": question.category,
@@ -250,11 +250,12 @@ class GenerateRandomQuestionsView(APIView):
 
                 response_data.append(list_data)
 
-            # Faqat oxirgi ro'yxatni qaytarish
-            return Response(response_data[-1] if response_data else {}, status=status.HTTP_200_OK)
+            # Hamma ma'lumotlarni qaytarish
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
 
     def post(self, request):
         try:
