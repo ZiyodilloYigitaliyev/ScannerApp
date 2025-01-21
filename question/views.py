@@ -323,7 +323,7 @@ class GenerateRandomQuestionsView(APIView):
             questions_num = request_data.get('num', {})
             questions_data = request_data.get('data', {})
             additional_value = questions_num.get('additional_value')
-            question_class = questions_num.get('question_class', '')
+            question_class = questions_num.get('class', '')
 
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
             majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
