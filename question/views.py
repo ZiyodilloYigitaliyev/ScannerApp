@@ -216,8 +216,14 @@ class GenerateRandomQuestionsView(APIView):
             question_class = request.query_params.get('question_class', None)
             limit = request.query_params.get('limit', None)
             date = request.query_params.get('date', None)
-            question_filter = request.query_params.get('question_filter', None)  # Query filter
-            questions_only = request.query_params.get('questions_only', None)  # Yangi query filter
+            question_filter = request.query_params.get('question_filter', '').lower() == 'true'
+            questions_only = request.query_params.get('questions_only', '').lower() == 'true'
+
+            if question_filter and questions_only:
+                return Response(
+                    {"error": "You cannot use 'question_filter' and 'questions_only' at the same time."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             # Barcha question_lists ma'lumotlarini olish
             question_lists = QuestionList.objects.prefetch_related('questions').all()
@@ -248,18 +254,15 @@ class GenerateRandomQuestionsView(APIView):
                     limit = int(limit)
                     question_lists = question_lists[:limit]
                 except ValueError:
-                    return Response({"error": "Invalid limit value. It should be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"error": "Invalid limit value. It should be an integer."},
+                                    status=status.HTTP_400_BAD_REQUEST)
 
             # Ma'lumotlarni tayyorlash
             response_data = []
             for question_list in question_lists:
                 # Har xil category va subject qiymatlarini olish
-                categories = list(
-                    question_list.questions.values_list("category", flat=True).distinct()
-                )
-                subjects = list(
-                    question_list.questions.values_list("subject", flat=True).distinct()
-                )
+                categories = list(question_list.questions.values_list("category", flat=True).distinct())
+                subjects = list(question_list.questions.values_list("subject", flat=True).distinct())
 
                 # Natija uchun ma'lumotlarni tayyorlash
                 list_data = {
@@ -268,48 +271,40 @@ class GenerateRandomQuestionsView(APIView):
                     "created_at": question_list.created_at,
                 }
 
-                # Agar `question_filter=true` bo'lsa, faqat `questions`ni qo'shish
-                if question_filter and question_filter.lower() == "true":
-                    list_data["questions"] = []
-                    questions = question_list.questions.all()
-                    for idx, question in enumerate(questions, start=1):
-                        list_data["questions"].append({
-                            "id": question.id,
-                            "category": question.category,
-                            "subject": question.subject,
-                            "text": question.text,
-                            "options": question.options,
-                            "true_answer": question.true_answer,
-                            "list": question.list_id,
+                # Filterga ko'ra ma'lumotlarni tayyorlash
+                if question_filter:
+                    list_data["questions"] = [
+                        {
+                            "id": q.id,
+                            "category": q.category,
+                            "subject": q.subject,
+                            "text": q.text,
+                            "options": q.options,
+                            "true_answer": q.true_answer,
+                            "list": q.list_id,
                             "order": idx,
-                        })
-
-                # Agar `questions_only=true` bo'lsa, faqat `questions`ni olib tashlash
-                elif questions_only and questions_only.lower() == "true":
-                    list_data.update({
-                        "category": {f"category_{idx + 1}": category for idx, category in enumerate(categories)},
-                        "subject": {f"subject_{idx + 1}": subject for idx, subject in enumerate(subjects)},
-                    })
-
-                # Default holat: barcha ma'lumotlarni qo'shish
+                        }
+                        for idx, q in enumerate(question_list.questions.all(), start=1)
+                    ]
+                elif questions_only:
+                    list_data["categories"] = categories
+                    list_data["subjects"] = subjects
                 else:
-                    list_data.update({
-                        "category": {f"category_{idx + 1}": category for idx, category in enumerate(categories)},
-                        "subject": {f"subject_{idx + 1}": subject for idx, subject in enumerate(subjects)},
-                        "questions": []
-                    })
-                    questions = question_list.questions.all()
-                    for idx, question in enumerate(questions, start=1):
-                        list_data["questions"].append({
-                            "id": question.id,
-                            "category": question.category,
-                            "subject": question.subject,
-                            "text": question.text,
-                            "options": question.options,
-                            "true_answer": question.true_answer,
-                            "list": question.list_id,
+                    list_data["categories"] = categories
+                    list_data["subjects"] = subjects
+                    list_data["questions"] = [
+                        {
+                            "id": q.id,
+                            "category": q.category,
+                            "subject": q.subject,
+                            "text": q.text,
+                            "options": q.options,
+                            "true_answer": q.true_answer,
+                            "list": q.list_id,
                             "order": idx,
-                        })
+                        }
+                        for idx, q in enumerate(question_list.questions.all(), start=1)
+                    ]
 
                 response_data.append(list_data)
 
@@ -318,23 +313,17 @@ class GenerateRandomQuestionsView(APIView):
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-
-
-
-
-
-
-
     def post(self, request):
         try:
             if isinstance(request.data, list):
                 request_data = request.data[0]
             else:
                 request_data = request.data
+
             questions_num = request_data.get('num', {})
             questions_data = request_data.get('data', {})
-            additional_value = questions_num.get('additional_value', 0)
-            question_class = questions_num.get("class", None)
+            additional_value = questions_num.get('additional_value')
+            question_class = questions_num.get('question_class', '')
 
             majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
             majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
@@ -351,31 +340,32 @@ class GenerateRandomQuestionsView(APIView):
                     "Majburiy_Fan_3": self.clean_questions(self.get_random_items(majburiy_fan_3, 10)),
                     "Fan_1": self.clean_questions(self.get_random_items(fan_1, 30)),
                     "Fan_2": self.clean_questions(self.get_random_items(fan_2, 30)),
-            }
+                }
 
-                list_id = self.get_next_list_id()  # Yangi list_id ni olish
+                # Bazadan oxirgi `list_id` ni olish
+                last_list = QuestionList.objects.order_by('-list_id').first()
+                list_id = (last_list.list_id + 1) if last_list else 100000
+
                 final_questions = {category: [] for category in new_list.keys()}
                 global_order_counter = 1
 
                 for category, questions in new_list.items():
-                # Matnlarni tozalash uchun `clean_questions`ni qo‘llash
-                    cleaned_questions = self.clean_questions(questions)
-
-                    for question in cleaned_questions:
+                    for question in questions:
                         final_questions[category].append({
                             "category": category,
-                            "subject": question.get("subject", ""),
-                            "text": question["text"],  # Tozalangan text
-                            "options": question.get("options", ""),
+                            "subject": self.strip_html_tags(question.get("subject", "")),
+                            "text": self.strip_html_tags(question["text"]),
+                            "options": self.strip_html_tags(question.get("options", "")),
                             "true_answer": question.get("true_answer", ""),
+                            "image": question.get("image", None),
                             "order": global_order_counter,
                         })
                         global_order_counter += 1
 
                 final_lists.append({
                     "list_id": list_id,
-                    "question_class": question_class,
-                    "questions": final_questions
+                    "questions": final_questions,
+                    "question_class": question_class
                 })
 
                 try:
@@ -387,41 +377,19 @@ class GenerateRandomQuestionsView(APIView):
                                     list=question_list,
                                     category=category,
                                     subject=question.get('subject', ""),
-                                    text=question.get('text', ""),  # Tozalangan text saqlanadi
+                                    text=question.get('text', ""),
                                     options=question.get('options', ""),
                                     true_answer=question.get('true_answer', ""),
-                            )
+                                    order=question.get('order', 0),
+                                )
                 except Exception as e:
                     print(f"Error during database save: {e}")
-                    return Response({"error": "Database save error 🖕🏻"}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response({"success": "Data Successfully Saved 🖕🏻"}, status=status.HTTP_201_CREATED)
+            return Response(final_lists, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-    @staticmethod
-    def clean_questions(questions):
-        def strip_html_tags(html_content):
-            if not html_content:
-                return ""
-            return re.sub(r'<[^>]*>', '', html_content).strip()
-
-        for question in questions:
-            # HTML teglarini olib tashlash
-            question['text'] = strip_html_tags(question.get('text', ""))
-            question['options'] = strip_html_tags(question.get('options', ""))
-
-            # Text boshidagi sonlarni olib tashlash
-            question['text'] = re.sub(r'^\d+\.\s*', '', question['text'])
-
-        return questions
-
-
-    def get_next_list_id(self):
-        last_list_id = QuestionList.objects.aggregate(max_id=Max('list_id'))['max_id']
-        next_id = (last_list_id or 100000) + 1
-        return next_id
 
     @staticmethod
     def get_random_items(source_list, count):
@@ -430,6 +398,11 @@ class GenerateRandomQuestionsView(APIView):
         count = min(count, len(source_list))
         return random.sample(source_list, count)
 
+    @staticmethod
+    def clean_questions(questions):
+        for question in questions:
+            question['text'] = re.sub(r'^\d+\.\s*', '', question['text'])
+        return questions
 
     @staticmethod
     def strip_html_tags(html_content):
