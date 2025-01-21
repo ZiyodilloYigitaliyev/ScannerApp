@@ -216,7 +216,8 @@ class GenerateRandomQuestionsView(APIView):
             question_class = request.query_params.get('question_class', None)
             limit = request.query_params.get('limit', None)
             date = request.query_params.get('date', None)
-            question_filter = request.query_params.get('question_filter', None)  # Yangi query filter
+            question_filter = request.query_params.get('question_filter', None)  # Query filter
+            questions_only = request.query_params.get('questions_only', None)  # Yangi query filter
 
             # Barcha question_lists ma'lumotlarini olish
             question_lists = QuestionList.objects.prefetch_related('questions').all()
@@ -232,7 +233,6 @@ class GenerateRandomQuestionsView(APIView):
             # date bo'yicha filter
             if date:
                 try:
-                    # Sana formatini tekshirish va filterlash
                     naive_date_time = datetime.strptime(date, "%Y-%m-%d")
                     date_time = make_aware(naive_date_time)
                     question_lists = question_lists.filter(created_at__date=date_time.date())
@@ -242,7 +242,7 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-            # Limitni qo'llash - faqat `question_lists`ga
+            # Limitni qo'llash
             if limit:
                 try:
                     limit = int(limit)
@@ -265,16 +265,13 @@ class GenerateRandomQuestionsView(APIView):
                 list_data = {
                     "list_id": question_list.list_id,
                     "question_class": question_list.question_class,
-                    "category": {f"category_{idx + 1}": category for idx, category in enumerate(categories)},
-                    "subject": {f"subject_{idx + 1}": subject for idx, subject in enumerate(subjects)},
                     "created_at": question_list.created_at,
                 }
 
-                # question_filter ga ko'ra `questions`ni qo'shish yoki tashlab ketish
-                if not (question_filter and question_filter.lower() == "true"):
+                # Agar `question_filter=true` bo'lsa, faqat `questions`ni qo'shish
+                if question_filter and question_filter.lower() == "true":
                     list_data["questions"] = []
                     questions = question_list.questions.all()
-
                     for idx, question in enumerate(questions, start=1):
                         list_data["questions"].append({
                             "id": question.id,
@@ -283,16 +280,48 @@ class GenerateRandomQuestionsView(APIView):
                             "text": question.text,
                             "options": question.options,
                             "true_answer": question.true_answer,
-                            "list": question_list.id,
+                            "list": question.list_id,
+                            "order": idx,
+                        })
+
+                # Agar `questions_only=true` bo'lsa, faqat `questions`ni olib tashlash
+                elif questions_only and questions_only.lower() == "true":
+                    list_data.update({
+                        "category": {f"category_{idx + 1}": category for idx, category in enumerate(categories)},
+                        "subject": {f"subject_{idx + 1}": subject for idx, subject in enumerate(subjects)},
+                    })
+
+                # Default holat: barcha ma'lumotlarni qo'shish
+                else:
+                    list_data.update({
+                        "category": {f"category_{idx + 1}": category for idx, category in enumerate(categories)},
+                        "subject": {f"subject_{idx + 1}": subject for idx, subject in enumerate(subjects)},
+                        "questions": []
+                    })
+                    questions = question_list.questions.all()
+                    for idx, question in enumerate(questions, start=1):
+                        list_data["questions"].append({
+                            "id": question.id,
+                            "category": question.category,
+                            "subject": question.subject,
+                            "text": question.text,
+                            "options": question.options,
+                            "true_answer": question.true_answer,
+                            "list": question.list_id,
                             "order": idx,
                         })
 
                 response_data.append(list_data)
 
-            # Barcha ma'lumotlarni qaytarish
             return Response(response_data, status=status.HTTP_200_OK)
+
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
 
 
 
