@@ -16,9 +16,9 @@ import zipfile
 import os
 from django.utils.dateparse import parse_datetime
 from datetime import *
-from django.db.models import Max
 from django.utils.timezone import make_aware
-
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
 
 class HTMLFromZipView(APIView):
     parser_classes = [MultiPartParser, FormParser]
@@ -205,7 +205,10 @@ class DeleteAllQuestionsView(APIView):
         Zip.objects.all().delete()
         return Response({"message": "All questions have been deleted successfully."}, status=status.HTTP_200_OK)
 
-
+class QuestionPagination(PageNumberPagination):
+    page_size = 10  # Default page size
+    page_size_query_param = 'limit'  # Query param to set page size dynamically
+    max_page_size = 100  # Maximum limit per page
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
@@ -214,29 +217,19 @@ class GenerateRandomQuestionsView(APIView):
         try:
             list_id = request.query_params.get('list_id', None)
             question_class = request.query_params.get('question_class', None)
-            limit = request.query_params.get('limit', None)
             date = request.query_params.get('date', None)
             question_filter = request.query_params.get('question_filter', '').lower() == 'true'
             questions_only = request.query_params.get('questions_only', '').lower() == 'true'
 
-            if question_filter and questions_only:
-                return Response(
-                    {"error": "You cannot use 'question_filter' and 'questions_only' at the same time."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Barcha question_lists ma'lumotlarini olish
+            # Filtrlash
             question_lists = QuestionList.objects.prefetch_related('questions').all()
 
-            # list_id bo'yicha filter
             if list_id:
                 question_lists = question_lists.filter(list_id=list_id)
 
-            # questions_class bo'yicha filter
             if question_class:
                 question_lists = question_lists.filter(question_class=question_class)
 
-            # date bo'yicha filter
             if date:
                 try:
                     naive_date_time = datetime.strptime(date, "%Y-%m-%d")
@@ -248,77 +241,59 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-            # Limitni qo'llash
-            if limit:
-                try:
-                    limit = int(limit)
-                    question_lists = question_lists[:limit]
-                except ValueError:
-                    return Response({"error": "Invalid limit value. It should be an integer."},
-                                    status=status.HTTP_400_BAD_REQUEST)
+            # Pagination qo'llash
+            paginator = QuestionPagination()
+            paginated_lists = paginator.paginate_queryset(question_lists, request)
 
-            # Ma'lumotlarni tayyorlash
             response_data = []
-            try:
-                # Sana bo‘yicha filtrni qo‘llash (agar mavjud bo‘lsa)
-                if date:
-                    question_lists = QuestionList.objects.filter(created_at__date=date).prefetch_related('questions')
+            for question_list in paginated_lists:
+                categories = list(question_list.questions.values_list("category", flat=True).distinct())
+                subjects = list(question_list.questions.values_list("subject", flat=True).distinct())
+
+                list_data = {
+                    "list_id": question_list.list_id,
+                    "question_class": question_list.question_class,
+                    "created_at": question_list.created_at,
+                }
+
+                if question_filter:
+                    list_data["questions"] = [
+                        {
+                            "id": q.id,
+                            "category": q.category,
+                            "subject": q.subject,
+                            "text": q.text,
+                            "options": q.options,
+                            "true_answer": q.true_answer,
+                            "list": q.list_id,
+                            "order": idx,
+                        }
+                        for idx, q in enumerate(question_list.questions.all(), start=1)
+                    ]
+                elif questions_only:
+                    list_data["categories"] = categories
+                    list_data["subjects"] = subjects
                 else:
-                    question_lists = QuestionList.objects.prefetch_related('questions').all()
+                    list_data["categories"] = categories
+                    list_data["subjects"] = subjects
+                    list_data["questions"] = [
+                        {
+                            "id": q.id,
+                            "category": q.category,
+                            "subject": q.subject,
+                            "text": q.text,
+                            "options": q.options,
+                            "true_answer": q.true_answer,
+                            "list": q.list_id,
+                            "order": idx,
+                        }
+                        for idx, q in enumerate(question_list.questions.all(), start=1)
+                    ]
 
-                print(f"Found question lists: {question_lists.count()}")  # Debug
+                response_data.append(list_data)
 
-                # Har bir ro'yxat uchun ma'lumotlarni yig'ish
-                for question_list in question_lists:
-                    categories = list(question_list.questions.values_list("category", flat=True).distinct())
-                    subjects = list(question_list.questions.values_list("subject", flat=True).distinct())
-
-                    list_data = {
-                        "list_id": question_list.list_id,
-                        "question_class": question_list.question_class,
-                        "created_at": question_list.created_at,
-                    }
-
-                    if question_filter and str(question_filter).lower() == "true":
-                        list_data["questions"] = [
-                            {
-                                "id": q.id,
-                                "category": q.category,
-                                "subject": q.subject,
-                                "text": q.text,
-                                "options": q.options,
-                                "true_answer": q.true_answer,
-                                "list": q.list_id,
-                                "order": idx,
-                            }
-                            for idx, q in enumerate(question_list.questions.all(), start=1)
-                        ]
-                    elif questions_only and str(questions_only).lower() == "true":
-                        list_data["categories"] = categories
-                        list_data["subjects"] = subjects
-                    else:
-                        list_data["categories"] = categories
-                        list_data["subjects"] = subjects
-                        list_data["questions"] = [
-                            {
-                                "id": q.id,
-                                "category": q.category,
-                                "subject": q.subject,
-                                "text": q.text,
-                                "options": q.options,
-                                "true_answer": q.true_answer,
-                                "list": q.list_id,
-                                "order": idx,
-                            }
-                            for idx, q in enumerate(question_list.questions.all(), start=1)
-                        ]
-
-                    response_data.append(list_data)
-
-                return Response(response_data, status=status.HTTP_200_OK)
-
-            except Exception as e:
-                return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            # Paginated javobni qaytarish
+            return paginator.get_paginated_response(response_data)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
