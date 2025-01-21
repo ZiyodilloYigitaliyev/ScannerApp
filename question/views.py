@@ -289,22 +289,22 @@ class GenerateRandomQuestionsView(APIView):
                 elif questions_only:
                     list_data["categories"] = categories
                     list_data["subjects"] = subjects
-                else:
-                    list_data["categories"] = categories
-                    list_data["subjects"] = subjects
-                    list_data["questions"] = [
-                        {
-                            "id": q.id,
-                            "category": q.category,
-                            "subject": q.subject,
-                            "text": q.text,
-                            "options": q.options,
-                            "true_answer": q.true_answer,
-                            "list": q.list_id,
-                            "order": idx,
-                        }
-                        for idx, q in enumerate(question_list.questions.all(), start=1)
-                    ]
+                # else:
+                #     list_data["categories"] = categories
+                #     list_data["subjects"] = subjects
+                #     list_data["questions"] = [
+                #         {
+                #             "id": q.id,
+                #             "category": q.category,
+                #             "subject": q.subject,
+                #             "text": q.text,
+                #             "options": q.options,
+                #             "true_answer": q.true_answer,
+                #             "list": q.list_id,
+                #             "order": idx,
+                #         }
+                #         for idx, q in enumerate(question_list.questions.all(), start=1)
+                #     ]
 
                 response_data.append(list_data)
 
