@@ -290,7 +290,6 @@ class GenerateRandomQuestionsView(APIView):
 
             # Barcha ma'lumotlarni qaytarish
             return Response(response_data, status=status.HTTP_200_OK)
-            # Hello World
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -337,7 +336,8 @@ class GenerateRandomQuestionsView(APIView):
                         question_list = QuestionList.objects.create(list_id=list_id, questions_class=questions_class)
                         for category, questions in final_questions.items():
                             for question in questions:
-                                Question.objects.create(
+                                Question.objects.bulk_create([
+                                    Question(
                                     list=question_list,
                                     category=category,
                                     subject=question.get("subject", ""),
@@ -345,6 +345,7 @@ class GenerateRandomQuestionsView(APIView):
                                     options=question.get("options", ""),
                                     true_answer=question.get("true_answer", ""),
                                 )
+                                ])
                     except Exception as e:
                         print(f"Error during database save: {e}")
                         return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)

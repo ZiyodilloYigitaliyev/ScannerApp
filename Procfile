@@ -1,2 +1,2 @@
-web: gunicorn conf.wsgi
+web: gunicorn conf.wsgi --timeout 60
 
