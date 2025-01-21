@@ -272,7 +272,8 @@ class GenerateRandomQuestionsView(APIView):
                 }
 
                 # Filterga ko'ra ma'lumotlarni tayyorlash
-                if question_filter:
+                if question_filter and question_filter.lower() == "true":
+                    # Faqat `questions`ni qo'shish
                     list_data["questions"] = [
                         {
                             "id": q.id,
@@ -286,29 +287,29 @@ class GenerateRandomQuestionsView(APIView):
                         }
                         for idx, q in enumerate(question_list.questions.all(), start=1)
                     ]
-                elif questions_only:
+                elif questions_only and questions_only.lower() == "true":
+                    # Faqat `categories` va `subjects`ni qo'shish
                     list_data["categories"] = categories
                     list_data["subjects"] = subjects
-                # else:
-                #     list_data["categories"] = categories
-                #     list_data["subjects"] = subjects
-                #     list_data["questions"] = [
-                #         {
-                #             "id": q.id,
-                #             "category": q.category,
-                #             "subject": q.subject,
-                #             "text": q.text,
-                #             "options": q.options,
-                #             "true_answer": q.true_answer,
-                #             "list": q.list_id,
-                #             "order": idx,
-                #         }
-                #         for idx, q in enumerate(question_list.questions.all(), start=1)
-                #     ]
+                else:
+                    # Default holat: barcha ma'lumotlarni qo'shish
+                    list_data["categories"] = categories
+                    list_data["subjects"] = subjects
+                    list_data["questions"] = [
+                        {
+                            "id": q.id,
+                            "category": q.category,
+                            "subject": q.subject,
+                            "text": q.text,
+                            "options": q.options,
+                            "true_answer": q.true_answer,
+                            "list": q.list_id,
+                            "order": idx,
+                        }
+                        for idx, q in enumerate(question_list.questions.all(), start=1)
+                    ]
 
-                # response_data.append(list_data)
-
-            return Response(response_data, status=status.HTTP_200_OK)
+                response_data.append(list_data)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
