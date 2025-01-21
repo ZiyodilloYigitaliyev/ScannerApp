@@ -333,19 +333,18 @@ class GenerateRandomQuestionsView(APIView):
 
                     # Ma'lumotlar bazasiga saqlash
                     try:
-                        question_list = QuestionList.objects.create(list_id=list_id, questions_class=questions_class)
-                        for category, questions in final_questions.items():
-                            for question in questions:
-                                Question.objects.bulk_create([
-                                    Question(
-                                    list=question_list,
-                                    category=category,
-                                    subject=question.get("subject", ""),
-                                    text=question.get("text", ""),
-                                    options=question.get("options", ""),
-                                    true_answer=question.get("true_answer", ""),
-                                )
-                                ])
+                        with transaction.atomic():
+                            question_list = QuestionList.objects.create(list_id=list_id, questions_class=questions_class)
+                            for category, questions in final_questions.items():
+                                for question in questions:
+                                    Question.objects.create(
+                                        list=question_list,
+                                        category=category,
+                                        subject=question.get("subject", ""),
+                                        text=question.get("text", ""),
+                                        options=question.get("options", ""),
+                                        true_answer=question.get("true_answer", ""),
+                                    )
                     except Exception as e:
                         print(f"Error during database save: {e}")
                         return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
