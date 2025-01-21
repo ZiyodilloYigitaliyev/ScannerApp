@@ -306,7 +306,7 @@ class GenerateRandomQuestionsView(APIView):
                 #         for idx, q in enumerate(question_list.questions.all(), start=1)
                 #     ]
 
-                response_data.append(list_data)
+                # response_data.append(list_data)
 
             return Response(response_data, status=status.HTTP_200_OK)
 
