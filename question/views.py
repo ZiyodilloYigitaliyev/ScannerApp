@@ -272,7 +272,7 @@ class GenerateRandomQuestionsView(APIView):
                 }
 
                 # Filterga ko'ra ma'lumotlarni tayyorlash
-                if question_filter and question_filter.lower() == "true":
+                if question_filter and str(question_filter).lower() == "true":
                     # Faqat `questions`ni qo'shish
                     list_data["questions"] = [
                         {
@@ -287,7 +287,7 @@ class GenerateRandomQuestionsView(APIView):
                         }
                         for idx, q in enumerate(question_list.questions.all(), start=1)
                     ]
-                elif questions_only and questions_only.lower() == "true":
+                elif questions_only and str(questions_only).lower() == "true":
                     # Faqat `categories` va `subjects`ni qo'shish
                     list_data["categories"] = categories
                     list_data["subjects"] = subjects
