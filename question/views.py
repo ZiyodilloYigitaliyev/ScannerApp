@@ -20,33 +20,74 @@ from datetime import *
 from django.utils.timezone import make_aware
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
+import uuid
+import logging
+from botocore.exceptions import ClientError
+
+logger = logging.getLogger(__name__)
 
 class HTMLFromZipView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def upload_image_to_s3(self, image_name, image_data):
-        """
-        Rasmlarni S3 bucketga yuklash va URLni qaytarish.
-        """
         s3_client = boto3.client(
             's3',
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
         )
         bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+
+        file_name, file_extension = os.path.splitext(image_name)
+        unique_name = file_name
+        s3_key = f"images/{unique_name}{file_extension}"
+
+        while self.check_file_exists_in_s3(s3_client, bucket_name, s3_key):
+            unique_name = f"{file_name}_{uuid.uuid4().hex[:8]}"
+            s3_key = f'images/{unique_name}{file_extension}'
+
         temp_file = NamedTemporaryFile(delete=False)
         temp_file.write(image_data)
         temp_file.close()
-        s3_key = f'images/{os.path.basename(image_name)}'
+
         s3_client.upload_file(temp_file.name, bucket_name, s3_key)
         os.unlink(temp_file.name)
         return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
+    
+    def check_file_exists_in_s3(self, s3_client, bucket_name, s3_key):
+        try:
+            s3_client.head_object(Bucket=bucket_name, Key=s3_key)
+            return True
+        except s3_client.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                return False
+            else:
+                raise
+
+    def find_red_classes(soup):
+        red_classes = []
+        style_tags = soup.find_all('style')
+        for style_tag in style_tags:
+            if style_tag.string:
+                matches = re.findall(
+                     r'\.(\w+)\s*{[^}]*color:\s*(#ff0000|rgb\(255,\s*0,\s*0\)|rgba\(255,\s*0,\s*0,\s*[\d\.]+\))\s*;?',
+                     style_tag.string,
+                     re.IGNORECASE
+                )
+                red_classes.extend(match[0] for match in matches)
+            return red_classes
+        
+    def extract_true_answer(self, p_tag):
+        for span_tag in p_tag.find_all("span"):
+            style = span_tag.get("style", "")
+            if "color: #ff0000" in style.lower() or "color:  rgb(255, 0, 0)" in style.lower():
+                return span_tag.text.strip()[0]
+            return None
 
     def process_html(self, html_file, images, category, subject):
-        """
-        HTML faylni qayta ishlash va savollarni ajratib olish.
-        """
         soup = BeautifulSoup(html_file, 'html.parser')
+        questions = []
+        current_question = None
+
 
         # Rasmlarni S3 ga yuklash va URLni qaytarish
         image_urls = {}
@@ -86,6 +127,10 @@ class HTMLFromZipView(APIView):
             # Variantlarni qo'shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
                 current_question["options"] += str(p_tag)
+
+                true_answer = self.extract_true_answer(p_tag)
+                if true_answer:
+                    current_question["true_answer"] = true_answer
 
         # Oxirgi savolni qo'shish
         if current_question:
@@ -163,19 +208,17 @@ class HTMLFromZipView(APIView):
 
 
 
-
-
-
-
 class FilterQuestionsView(APIView):
     def get(self, request, *args, **kwargs):
-        id_list = request.query_params.getlist('id')  # Idlarni ro'yxat ko'rinishida olish
-        category = request.query_params.get('category')
-        subject = request.query_params.get('subject')
-        date = request.query_params.get('date')
+        id_list = request.query_params.getlist(
+            "id"
+        )  # Idlarni ro'yxat ko'rinishida olish
+        category = request.query_params.get("category")
+        subject = request.query_params.get("subject")
+        date = request.query_params.get("date")
 
         questions = Zip.objects.all()
-        
+
         if category:
             questions = questions.filter(category__iexact=category)
         if subject:
@@ -188,12 +231,16 @@ class FilterQuestionsView(APIView):
                 if parsed_date:
                     questions = questions.filter(date__date=parsed_date.date())
                 else:
-                    return Response({"error": "Invalid date format. Use ISO 8601 format."}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {"error": "Invalid date format. Use ISO 8601 format."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
             except Exception as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ZipSerializer(questions, many=True)
-        return Response({"questions": serializer.data}, status=status.HTTP_200_OK)   
+        return Response({"questions": serializer.data}, status=status.HTTP_200_OK)
+
 
 class ListQuestionsView(APIView):
     def get(self, request):
@@ -201,7 +248,7 @@ class ListQuestionsView(APIView):
         serializer = ZipSerializer(questions, many=True)
         grouped_questions = {}
         for question in serializer.data:
-            category = question['category']
+            category = question["category"]
             if category not in grouped_questions:
                 grouped_questions[category] = []
             grouped_questions[category].append(question)
@@ -211,26 +258,30 @@ class ListQuestionsView(APIView):
 class DeleteAllQuestionsView(APIView):
     def delete(self, request):
         Zip.objects.all().delete()
-        return Response({"message": "All questions have been deleted successfully."}, status=status.HTTP_200_OK)
+        return Response(
+            {"message": "All questions have been deleted successfully."},
+            status=status.HTTP_200_OK,
+        )
+
 
 class QuestionPagination(PageNumberPagination):
-    page_size = 100  # Default page size
+    page_size = 10  # Default page size
     page_size_query_param = 'limit'  # Query param to set page size dynamically
-    max_page_size = 1000  # Maximum limit per page
+    max_page_size = 100  # Maximum limit per page
+
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
         try:
-            # Query parametrlarni olish
             list_id = request.query_params.get('list_id', None)
             question_class = request.query_params.get('question_class', None)
             date = request.query_params.get('date', None)
             question_filter = request.query_params.get('question_filter', '').lower() == 'true'
             questions_only = request.query_params.get('questions_only', '').lower() == 'true'
 
-            # Filtrlash uchun asosiy queryset
+            # Filtrlash
             question_lists = QuestionList.objects.prefetch_related('questions').all()
 
             if list_id:
@@ -243,11 +294,13 @@ class GenerateRandomQuestionsView(APIView):
                 try:
                     naive_date_time = datetime.strptime(date, "%Y-%m-%d")
                     date_time = make_aware(naive_date_time)
-                    question_lists = question_lists.filter(created_at__date=date_time.date())
+                    question_lists = question_lists.filter(
+                        created_at__date=date_time.date()
+                    )
                 except ValueError:
                     return Response(
                         {"error": "Invalid date format. Use YYYY-MM-DD."},
-                        status=status.HTTP_400_BAD_REQUEST
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
 
             # Paginationni qo'llash
@@ -257,8 +310,14 @@ class GenerateRandomQuestionsView(APIView):
             # Javob uchun ma'lumotlarni tayyorlash
             response_data = []
             for question_list in paginated_lists:
-                categories = list(question_list.questions.values_list("category", flat=True).distinct())
-                subjects = list(question_list.questions.values_list("subject", flat=True).distinct())
+                categories = list(
+                    question_list.questions.values_list(
+                        "category", flat=True
+                    ).distinct()
+                )
+                subjects = list(
+                    question_list.questions.values_list("subject", flat=True).distinct()
+                )
 
                 list_data = {
                     "list_id": question_list.list_id,
@@ -307,7 +366,7 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-        
+
     def post(self, request):
         try:
             if isinstance(request.data, list):
@@ -315,30 +374,36 @@ class GenerateRandomQuestionsView(APIView):
             else:
                 request_data = request.data
 
-            questions_num = request_data.get('num', {})
-            questions_data = request_data.get('data', {})
-            additional_value = questions_num.get('additional_value')
-            question_class = questions_num.get('class', '')
+            questions_num = request_data.get("num", {})
+            questions_data = request_data.get("data", {})
+            additional_value = questions_num.get("additional_value")
+            question_class = questions_num.get("class", "")
 
-            majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
-            majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
-            majburiy_fan_3 = questions_data.get('Majburiy_Fan_3', [])
-            fan_1 = questions_data.get('Fan_1', [])
-            fan_2 = questions_data.get('Fan_2', [])
+            majburiy_fan_1 = questions_data.get("Majburiy_Fan_1", [])
+            majburiy_fan_2 = questions_data.get("Majburiy_Fan_2", [])
+            majburiy_fan_3 = questions_data.get("Majburiy_Fan_3", [])
+            fan_1 = questions_data.get("Fan_1", [])
+            fan_2 = questions_data.get("Fan_2", [])
 
             final_lists = []
 
             for _ in range(additional_value):
                 new_list = {
-                    "Majburiy_Fan_1": self.clean_questions(self.get_random_items(majburiy_fan_1, 10)),
-                    "Majburiy_Fan_2": self.clean_questions(self.get_random_items(majburiy_fan_2, 10)),
-                    "Majburiy_Fan_3": self.clean_questions(self.get_random_items(majburiy_fan_3, 10)),
+                    "Majburiy_Fan_1": self.clean_questions(
+                        self.get_random_items(majburiy_fan_1, 10)
+                    ),
+                    "Majburiy_Fan_2": self.clean_questions(
+                        self.get_random_items(majburiy_fan_2, 10)
+                    ),
+                    "Majburiy_Fan_3": self.clean_questions(
+                        self.get_random_items(majburiy_fan_3, 10)
+                    ),
                     "Fan_1": self.clean_questions(self.get_random_items(fan_1, 30)),
                     "Fan_2": self.clean_questions(self.get_random_items(fan_2, 30)),
                 }
 
                 # Bazadan oxirgi `list_id` ni olish
-                last_list = QuestionList.objects.order_by('-list_id').first()
+                last_list = QuestionList.objects.order_by("-list_id").first()
                 list_id = (last_list.list_id + 1) if last_list else 100000
 
                 final_questions = {category: [] for category in new_list.keys()}
@@ -346,45 +411,61 @@ class GenerateRandomQuestionsView(APIView):
 
                 for category, questions in new_list.items():
                     for question in questions:
-                        final_questions[category].append({
-                            "category": category,
-                            "subject": self.strip_html_tags(question.get("subject", "")),
-                            "text": self.strip_html_tags(question["text"]),
-                            "options": self.strip_html_tags(question.get("options", "")),
-                            "true_answer": question.get("true_answer", ""),
-                            "image": question.get("image", None),
-                            "order": global_order_counter,
-                        })
+                        final_questions[category].append(
+                            {
+                                "category": category,
+                                "subject": self.strip_html_tags(
+                                    question.get("subject", "")
+                                ),
+                                "text": self.strip_html_tags(question["text"]),
+                                "options": self.strip_html_tags(
+                                    question.get("options", "")
+                                ),
+                                "true_answer": question.get("true_answer", ""),
+                                "image": question.get("image", None),
+                                "order": global_order_counter,
+                            }
+                        )
                         global_order_counter += 1
 
-                final_lists.append({
-                    "list_id": list_id,
-                    "questions": final_questions,
-                    "question_class": question_class
-                })
+                final_lists.append(
+                    {
+                        "list_id": list_id,
+                        "questions": final_questions,
+                        "question_class": question_class,
+                    }
+                )
 
                 try:
                     with transaction.atomic():
-                        question_list = QuestionList.objects.create(list_id=list_id, question_class=question_class)
+                        question_list = QuestionList.objects.create(
+                            list_id=list_id, question_class=question_class
+                        )
                         for category, questions in final_questions.items():
                             for question in questions:
                                 Question.objects.create(
                                     list=question_list,
                                     category=category,
-                                    subject=question.get('subject', ""),
-                                    text=question.get('text', ""),
-                                    options=question.get('options', ""),
-                                    true_answer=question.get('true_answer', ""),
-                                    order=question.get('order', 0),
+                                    subject=question.get("subject", ""),
+                                    text=question.get("text", ""),
+                                    options=question.get("options", ""),
+                                    true_answer=question.get("true_answer", ""),
+                                    order=question.get("order", 0),
                                 )
                 except Exception as e:
                     print(f"Error during database save: {e}")
-                    return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {"error": "Database save error"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
             return Response(status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @staticmethod
     def get_random_items(source_list, count):
@@ -396,7 +477,7 @@ class GenerateRandomQuestionsView(APIView):
     @staticmethod
     def clean_questions(questions):
         for question in questions:
-            question['text'] = re.sub(r'^\d+\.\s*', '', question['text'])
+            question["text"] = re.sub(r"^\d+\.\s*", "", question["text"])
         return questions
 
     @staticmethod
@@ -406,11 +487,11 @@ class GenerateRandomQuestionsView(APIView):
 
         def preserve_img_tag(match):
             tag = match.group(0)
-            if tag.startswith('<img') and 'src=' in tag:
+            if tag.startswith("<img") and "src=" in tag:
                 src_match = re.search(r'src="([^"]+)"', tag)
                 if src_match:
-                    return src_match.group(1) 
-            return ''  
+                    return src_match.group(1)
+            return ""
 
-        html_without_tags = re.sub(r'<[^>]+>', preserve_img_tag, html_content)
+        html_without_tags = re.sub(r"<[^>]+>", preserve_img_tag, html_content)
         return html_without_tags.strip()
