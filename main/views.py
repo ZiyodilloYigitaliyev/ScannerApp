@@ -18,7 +18,6 @@ import logging
 from question.models import Zip
 
 logger = logging.getLogger(__name__)
-# S3 bilan ishlash uchun yordamchi funksiya
 def upload_to_s3(file_path, s3_key):
     s3 = boto3.client(
         's3',
@@ -47,12 +46,7 @@ def check_marked_circle(image_path, coordinates, threshold=200):
         for option, coord in options.items():
             if not isinstance(coord, list) or len(coord) != 2:
                 raise ValueError(f"Noto'g'ri koordinata formati: {coord}")
-            try:
-                # Float koordinatalarni int formatga o'tkazish
-                x, y = map(int, coord)
-            except ValueError:
-                raise ValueError(f"Noto'g'ri koordinata qiymati: {coord}")
-            
+            x, y = map(int, coord)
             radius = 5
             roi = image[y - radius:y + radius, x - radius:x + radius]
             mean_brightness = np.mean(roi)
@@ -161,7 +155,6 @@ class ProcessZipFileView(APIView):
                             )
                             results.append(result)
 
-            # Umumiy natijalarni saqlash
             ProcessedTest.objects.create(
                 student_id=student_id,
                 total_score=total_score,
