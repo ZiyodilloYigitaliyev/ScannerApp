@@ -1,8 +1,9 @@
+from django.http import JsonResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import QuestionList, Question, Zip
-from .serializers import ZipSerializer
+from .serializers import ZipSerializer, QuestionSerializer
 from rest_framework.permissions import AllowAny
 import random
 from django.db import transaction
@@ -227,7 +228,18 @@ class GenerateRandomQuestionsView(APIView):
             date = request.query_params.get('date', None)
             question_filter = request.query_params.get('question_filter', '').lower() == 'true'
             questions_only = request.query_params.get('questions_only', '').lower() == 'true'
-
+            question_class = request.GET.get('question_class')
+            categories = request.GET.get('categories', '').split(',')
+            subjects = request.GET.get('subjects', '').split(',')
+            # Filtrlash
+            questions = Question.objects.filter(
+                question_class=question_class,
+                categories__overlap=categories,
+                subjects__overlap=subjects
+            )
+            # Serialize qilish
+            serializer = QuestionSerializer(questions, many=True)
+            return JsonResponse({'results': serializer.data}, safe=False)
             # Filtrlash
             question_lists = QuestionList.objects.prefetch_related('questions').all()
 
