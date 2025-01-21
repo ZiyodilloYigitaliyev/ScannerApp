@@ -320,6 +320,9 @@ class GenerateRandomQuestionsView(APIView):
             except Exception as e:
                 return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
+        except Exception as e:
+            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
     def post(self, request):
         try:
             if isinstance(request.data, list):
