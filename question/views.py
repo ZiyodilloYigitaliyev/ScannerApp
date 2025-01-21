@@ -213,9 +213,9 @@ class DeleteAllQuestionsView(APIView):
         return Response({"message": "All questions have been deleted successfully."}, status=status.HTTP_200_OK)
 
 class QuestionPagination(PageNumberPagination):
-    page_size = 10  # Default page size
+    page_size = 100  # Default page size
     page_size_query_param = 'limit'  # Query param to set page size dynamically
-    max_page_size = 100  # Maximum limit per page
+    max_page_size = 1000  # Maximum limit per page
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
