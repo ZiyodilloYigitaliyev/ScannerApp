@@ -223,24 +223,14 @@ class GenerateRandomQuestionsView(APIView):
 
     def get(self, request):
         try:
+            # Query parametrlarni olish
             list_id = request.query_params.get('list_id', None)
             question_class = request.query_params.get('question_class', None)
             date = request.query_params.get('date', None)
             question_filter = request.query_params.get('question_filter', '').lower() == 'true'
             questions_only = request.query_params.get('questions_only', '').lower() == 'true'
-            question_class = request.GET.get('question_class')
-            categories = request.GET.get('categories', '').split(',')
-            subjects = request.GET.get('subjects', '').split(',')
-            # Filtrlash
-            questions = Question.objects.filter(
-                question_class=question_class,
-                categories__overlap=categories,
-                subjects__overlap=subjects
-            )
-            # Serialize qilish
-            serializer = QuestionSerializer(questions, many=True)
-            return JsonResponse({'results': serializer.data}, safe=False)
-            # Filtrlash
+
+            # Filtrlash uchun asosiy queryset
             question_lists = QuestionList.objects.prefetch_related('questions').all()
 
             if list_id:
@@ -260,10 +250,11 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-            # Pagination qo'llash
+            # Paginationni qo'llash
             paginator = QuestionPagination()
             paginated_lists = paginator.paginate_queryset(question_lists, request)
 
+            # Javob uchun ma'lumotlarni tayyorlash
             response_data = []
             for question_list in paginated_lists:
                 categories = list(question_list.questions.values_list("category", flat=True).distinct())
@@ -316,7 +307,7 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
+        
     def post(self, request):
         try:
             if isinstance(request.data, list):
