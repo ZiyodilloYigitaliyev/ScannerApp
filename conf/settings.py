@@ -40,6 +40,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 100,  # Har bir sahifada nechta element bo'lishini belgilang
+    'DEFAULT_PAGINATION_CLASS': None,
 }
 
 MIDDLEWARE = [
