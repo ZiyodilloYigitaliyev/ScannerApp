@@ -23,29 +23,6 @@ from rest_framework.response import Response
 class HTMLFromZipView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
-    def find_red_class(self, soup):
-        style_tags = soup.find_all("style")
-        red_classes = []
-
-        for style_tag in style_tags:
-            styles = style_tag.string
-            if styles:
-                matches = re.findall(
-                    r'\.(\w+)\s*{[^}]*color:\s*(#ff0000|rgb\(255,\s*0,\s*0\)|rgba\(255,\s*0,\s*0,\s*[\d\.]+\))\s*;?',
-                    styles,
-                    re.IGNORECASE
-                )
-                red_classes.extend([match[0] for match in matches])
-        return red_classes
-
-    def extract_true_answer(self, p_tag, red_classes):
-
-        for span_tag in p_tag.find_all("span"):
-            span_classes = span_tag.get("class", [])
-            if any(cls in red_classes for cls in span_classes):
-                return span_tag.text.strip()
-        return None
-
     def upload_image_to_s3(self, image_name, image_data):
         """
         Rasmlarni S3 bucketga yuklash va URLni qaytarish.
@@ -69,14 +46,21 @@ class HTMLFromZipView(APIView):
         HTML faylni qayta ishlash va savollarni ajratib olish.
         """
         soup = BeautifulSoup(html_file, 'html.parser')
-        red_class = self.find_red_class(soup)
-        image_urls = {img_name: self.upload_image_to_s3(img_name, img_data) for img_name, img_data in images.items()}
 
-        # Rasmlarning `src` atributlarini yangilash
+        # Rasmlarni S3 ga yuklash va URLni qaytarish
+        image_urls = {}
+        for img_name, img_data in images.items():
+            image_urls[img_name] = self.upload_image_to_s3(img_name, img_data)
+
+        # HTMLni tozalash va img teglarini yangilash
         for img_tag in soup.find_all('img'):
             img_src = img_tag.get('src')
             if img_src in image_urls:
+                # img tegining src atributini S3 URL bilan yangilash
                 img_tag['src'] = image_urls[img_src]
+            else:
+                # src mavjud bo'lmasa, img tegini o'chirib tashlash
+                img_tag.decompose()
 
         # Savollarni ajratib olish
         questions = []
@@ -101,13 +85,6 @@ class HTMLFromZipView(APIView):
             # Variantlarni qo'shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
                 current_question["options"] += str(p_tag)
-
-                # To'g'ri javobni aniqlash
-                if red_class:
-                    for span_tag in p_tag.find_all("span", class_=red_class):
-                        answer_text = span_tag.get_text(strip=True)
-                        if answer_text.startswith(("A", "B", "C", "D")):
-                            current_question["true_answer"] = answer_text[0]
 
         # Oxirgi savolni qo'shish
         if current_question:
@@ -156,6 +133,36 @@ class HTMLFromZipView(APIView):
             )
 
         return Response({"message": "Savollar ma'lumotlar bazasiga muvaffaqiyatli saqlandi."}, status=201)
+
+    def get(self, request, *args, **kwargs):
+        # Ma'lumotlarni olishda rasmlar URLini qaytarish
+        questions = Zip.objects.all()
+        result = []
+
+        for question in questions:
+            question_data = {
+                "text": question.text,
+                "options": question.options,
+                "true_answer": question.true_answer,
+                "category": question.category,
+                "subject": question.subject
+            }
+
+            # HTMLni qayta ishlash va rasmlarni to'g'ri URL bilan yangilash
+            soup = BeautifulSoup(question.text, 'html.parser')
+            for img_tag in soup.find_all('img'):
+                img_src = img_tag.get('src')
+                if img_src and img_src.startswith('images/'):
+                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
+
+            question_data["text"] = str(soup)
+            result.append(question_data)
+
+        return Response(result, status=200)
+
+
+
+
 
 
 
@@ -394,16 +401,13 @@ class GenerateRandomQuestionsView(APIView):
         if not html_content:
             return ""
 
-        # img teglari va ulardagi src atributlarini saqlab qolish
         def preserve_img_tag(match):
             tag = match.group(0)
-            # Agar tag img bo'lsa, faqat src qiymatini saqlash
             if tag.startswith('<img') and 'src=' in tag:
                 src_match = re.search(r'src="([^"]+)"', tag)
                 if src_match:
-                    return src_match.group(1)  # src qiymatini qaytaradi
-            return ''  # Boshqa hollarda tegni olib tashlaydi
+                    return src_match.group(1) 
+            return ''  
 
-        # HTML teglarini filtr qilish
         html_without_tags = re.sub(r'<[^>]+>', preserve_img_tag, html_content)
         return html_without_tags.strip()
