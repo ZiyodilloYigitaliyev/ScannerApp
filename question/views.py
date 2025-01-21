@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import QuestionList, Question, Zip
-from .serializers import QuestionListSerializer, ZipSerializer
+from .serializers import ZipSerializer
 from rest_framework.permissions import AllowAny
 import random
 from django.db import transaction
@@ -298,72 +298,101 @@ class GenerateRandomQuestionsView(APIView):
 
     def post(self, request):
         try:
-            request_data = request.data
+            if isinstance(request.data, list):
+                request_data = request.data[0]
+            else:
+                request_data = request.data
+            questions_num = request_data.get('num', {})
+            questions_data = request_data.get('data', {})
+            additional_value = questions_num.get('additional_value', 0)
+            question_class = questions_num.get("class", None)
+
+            majburiy_fan_1 = questions_data.get('Majburiy_Fan_1', [])
+            majburiy_fan_2 = questions_data.get('Majburiy_Fan_2', [])
+            majburiy_fan_3 = questions_data.get('Majburiy_Fan_3', [])
+            fan_1 = questions_data.get('Fan_1', [])
+            fan_2 = questions_data.get('Fan_2', [])
 
             final_lists = []
-            for item in request_data:
-                questions_num = item.get("num", {})
-                questions_data = item.get("data", {})
-                additional_value = questions_num.get("additional_value", 0)
-                questions_class = questions_num.get("class", None)
 
-                # Har bir ro'yxat uchun ishlov berish
-                for _ in range(additional_value):
-                    list_id = self.get_next_list_id()
+            for _ in range(additional_value):
+                new_list = {
+                    "Majburiy_Fan_1": self.clean_questions(self.get_random_items(majburiy_fan_1, 10)),
+                    "Majburiy_Fan_2": self.clean_questions(self.get_random_items(majburiy_fan_2, 10)),
+                    "Majburiy_Fan_3": self.clean_questions(self.get_random_items(majburiy_fan_3, 10)),
+                    "Fan_1": self.clean_questions(self.get_random_items(fan_1, 30)),
+                    "Fan_2": self.clean_questions(self.get_random_items(fan_2, 30)),
+            }
 
-                    # Har bir kategoriya bo'yicha savollarni qayta ishlash
-                    final_questions = {key: [] for key in questions_data.keys()}
+                list_id = self.get_next_list_id()  # Yangi list_id ni olish
+                final_questions = {category: [] for category in new_list.keys()}
+                global_order_counter = 1
 
-                    for category, questions in questions_data.items():
-                        for question in questions:
-                            final_questions[category].append({
-                                "category": category,
-                                "subject": question.get("subject", ""),
-                                "text": question["text"],
-                                "options": question.get("options", ""),
-                                "true_answer": question.get("true_answer", ""),
-                                "image": question.get("image", None),
-                            })
+                for category, questions in new_list.items():
+                # Matnlarni tozalash uchun `clean_questions`ni qo‘llash
+                    cleaned_questions = self.clean_questions(questions)
 
-                    # Natijalarni saqlash
-                    final_lists.append({
-                        "list_id": list_id,
-                        "questions_class": questions_class,
-                        "questions": final_questions,
-                    })
+                    for question in cleaned_questions:
+                        final_questions[category].append({
+                            "category": category,
+                            "subject": question.get("subject", ""),
+                            "text": question["text"],  # Tozalangan text
+                            "options": question.get("options", ""),
+                            "true_answer": question.get("true_answer", ""),
+                            "order": global_order_counter,
+                        })
+                        global_order_counter += 1
 
-                    # Ma'lumotlar bazasiga saqlash
-                    try:
-                        with transaction.atomic():
-                            question_list = QuestionList.objects.create(list_id=list_id, questions_class=questions_class)
-                            for category, questions in final_questions.items():
-                                for question in questions:
-                                    Question.objects.create(
-                                        list=question_list,
-                                        category=category,
-                                        subject=question.get("subject", ""),
-                                        text=question.get("text", ""),
-                                        options=question.get("options", ""),
-                                        true_answer=question.get("true_answer", ""),
-                                    )
-                    except Exception as e:
-                        print(f"Error during database save: {e}")
-                        return Response({"error": "Database save error"}, status=status.HTTP_400_BAD_REQUEST)
+                final_lists.append({
+                    "list_id": list_id,
+                    "question_class": question_class,
+                    "questions": final_questions
+                })
 
-            return Response({"success": "Malumotlar Muvofaqiyatli Saqlandi"}, status=status.HTTP_201_CREATED)
+                try:
+                    with transaction.atomic():
+                        question_list = QuestionList.objects.create(list_id=list_id, question_class=question_class)
+                        for category, questions in final_questions.items():
+                            for question in questions:
+                                Question.objects.create(
+                                    list=question_list,
+                                    category=category,
+                                    subject=question.get('subject', ""),
+                                    text=question.get('text', ""),  # Tozalangan text saqlanadi
+                                    options=question.get('options', ""),
+                                    true_answer=question.get('true_answer', ""),
+                            )
+                except Exception as e:
+                    print(f"Error during database save: {e}")
+                    return Response({"error": "Database save error 🖕🏻"}, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({"success": "Data Successfully Saved 🖕🏻"}, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
+    @staticmethod
+    def clean_questions(questions):
+        def strip_html_tags(html_content):
+            if not html_content:
+                return ""
+            return re.sub(r'<[^>]*>', '', html_content).strip()
+
+        for question in questions:
+            # HTML teglarini olib tashlash
+            question['text'] = strip_html_tags(question.get('text', ""))
+            question['options'] = strip_html_tags(question.get('options', ""))
+
+            # Text boshidagi sonlarni olib tashlash
+            question['text'] = re.sub(r'^\d+\.\s*', '', question['text'])
+
+        return questions
+
 
     def get_next_list_id(self):
-        # Ma'lumotlar bazasidagi eng katta list_id ni topish
         last_list_id = QuestionList.objects.aggregate(max_id=Max('list_id'))['max_id']
-        next_id = (last_list_id or 100000) + 1  # Agar mavjud bo'lmasa, 100001 bilan boshlash
+        next_id = (last_list_id or 100000) + 1
         return next_id
-
-
-
 
     @staticmethod
     def get_random_items(source_list, count):
@@ -372,8 +401,9 @@ class GenerateRandomQuestionsView(APIView):
         count = min(count, len(source_list))
         return random.sample(source_list, count)
 
-    # @staticmethod
-    # def clean_questions(questions):
-    #     for question in questions:
-    #         question['text'] = re.sub(r'^\d+\.\s*', '', question['text'])
-    #     return questions
+
+    @staticmethod
+    def strip_html_tags(html_content):
+        if not html_content:
+            return ""
+        return re.sub(r'<[^>]*>', '', html_content).strip()
