@@ -259,60 +259,66 @@ class GenerateRandomQuestionsView(APIView):
 
             # Ma'lumotlarni tayyorlash
             response_data = []
-            for question_list in question_lists:
-                # Har xil category va subject qiymatlarini olish
-                categories = list(question_list.questions.values_list("category", flat=True).distinct())
-                subjects = list(question_list.questions.values_list("subject", flat=True).distinct())
-
-                # Natija uchun ma'lumotlarni tayyorlash
-                list_data = {
-                    "list_id": question_list.list_id,
-                    "question_class": question_list.question_class,
-                    "created_at": question_list.created_at,
-                }
-
-                # Filterga ko'ra ma'lumotlarni tayyorlash
-                if question_filter and str(question_filter).lower() == "true":
-                    # Faqat `questions`ni qo'shish
-                    list_data["questions"] = [
-                        {
-                            "id": q.id,
-                            "category": q.category,
-                            "subject": q.subject,
-                            "text": q.text,
-                            "options": q.options,
-                            "true_answer": q.true_answer,
-                            "list": q.list_id,
-                            "order": idx,
-                        }
-                        for idx, q in enumerate(question_list.questions.all(), start=1)
-                    ]
-                elif questions_only and str(questions_only).lower() == "true":
-                    # Faqat `categories` va `subjects`ni qo'shish
-                    list_data["categories"] = categories
-                    list_data["subjects"] = subjects
+            try:
+                # Sana bo‘yicha filtrni qo‘llash (agar mavjud bo‘lsa)
+                if date:
+                    question_lists = QuestionList.objects.filter(created_at__date=date).prefetch_related('questions')
                 else:
-                    # Default holat: barcha ma'lumotlarni qo'shish
-                    list_data["categories"] = categories
-                    list_data["subjects"] = subjects
-                    list_data["questions"] = [
-                        {
-                            "id": q.id,
-                            "category": q.category,
-                            "subject": q.subject,
-                            "text": q.text,
-                            "options": q.options,
-                            "true_answer": q.true_answer,
-                            "list": q.list_id,
-                            "order": idx,
-                        }
-                        for idx, q in enumerate(question_list.questions.all(), start=1)
-                    ]
+                    question_lists = QuestionList.objects.prefetch_related('questions').all()
 
-                response_data.append(list_data)
+                print(f"Found question lists: {question_lists.count()}")  # Debug
+
+                # Har bir ro'yxat uchun ma'lumotlarni yig'ish
+                for question_list in question_lists:
+                    categories = list(question_list.questions.values_list("category", flat=True).distinct())
+                    subjects = list(question_list.questions.values_list("subject", flat=True).distinct())
+
+                    list_data = {
+                        "list_id": question_list.list_id,
+                        "question_class": question_list.question_class,
+                        "created_at": question_list.created_at,
+                    }
+
+                    if question_filter and str(question_filter).lower() == "true":
+                        list_data["questions"] = [
+                            {
+                                "id": q.id,
+                                "category": q.category,
+                                "subject": q.subject,
+                                "text": q.text,
+                                "options": q.options,
+                                "true_answer": q.true_answer,
+                                "list": q.list_id,
+                                "order": idx,
+                            }
+                            for idx, q in enumerate(question_list.questions.all(), start=1)
+                        ]
+                    elif questions_only and str(questions_only).lower() == "true":
+                        list_data["categories"] = categories
+                        list_data["subjects"] = subjects
+                    else:
+                        list_data["categories"] = categories
+                        list_data["subjects"] = subjects
+                        list_data["questions"] = [
+                            {
+                                "id": q.id,
+                                "category": q.category,
+                                "subject": q.subject,
+                                "text": q.text,
+                                "options": q.options,
+                                "true_answer": q.true_answer,
+                                "list": q.list_id,
+                                "order": idx,
+                            }
+                            for idx, q in enumerate(question_list.questions.all(), start=1)
+                        ]
+
+                    response_data.append(list_data)
+
                 return Response(response_data, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            except Exception as e:
+                return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
     def post(self, request):
         try:
