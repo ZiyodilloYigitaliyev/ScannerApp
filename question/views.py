@@ -213,7 +213,7 @@ class GenerateRandomQuestionsView(APIView):
     def get(self, request):
         try:
             list_id = request.query_params.get('list_id', None)
-            questions_class = request.query_params.get('questions_class', None)
+            question_class = request.query_params.get('question_class', None)
             limit = request.query_params.get('limit', None)
             date = request.query_params.get('date', None)
             question_filter = request.query_params.get('question_filter', None)  # Yangi query filter
@@ -226,8 +226,8 @@ class GenerateRandomQuestionsView(APIView):
                 question_lists = question_lists.filter(list_id=list_id)
 
             # questions_class bo'yicha filter
-            if questions_class:
-                question_lists = question_lists.filter(questions_class=questions_class)
+            if question_class:
+                question_lists = question_lists.filter(question_class=question_class)
 
             # date bo'yicha filter
             if date:
@@ -264,7 +264,7 @@ class GenerateRandomQuestionsView(APIView):
                 # Natija uchun ma'lumotlarni tayyorlash
                 list_data = {
                     "list_id": question_list.list_id,
-                    "questions_class": question_list.questions_class,
+                    "question_class": question_list.question_class,
                     "category": {f"category_{idx + 1}": category for idx, category in enumerate(categories)},
                     "subject": {f"subject_{idx + 1}": subject for idx, subject in enumerate(subjects)},
                     "created_at": question_list.created_at,
