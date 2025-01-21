@@ -5,6 +5,7 @@ from .models import QuestionList, Question, Zip
 from .serializers import QuestionListSerializer, ZipSerializer
 from rest_framework.permissions import AllowAny
 import random
+from django.db import transaction
 import re
 from django.conf import settings
 from tempfile import NamedTemporaryFile
