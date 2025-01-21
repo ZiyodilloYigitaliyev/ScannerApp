@@ -14,6 +14,10 @@ class QuestionSerializer(serializers.ModelSerializer):
 class QuestionListSerializer(serializers.ModelSerializer):
     questions = QuestionSerializer(many=True, read_only=True)
 
+
     class Meta:
         model = QuestionList
         fields = ['questions', 'list_id', 'question_class', 'created_at'] 
+
+
+#
