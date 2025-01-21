@@ -408,4 +408,17 @@ class GenerateRandomQuestionsView(APIView):
     def strip_html_tags(html_content):
         if not html_content:
             return ""
-        return re.sub(r'<[^>]*>', '', html_content).strip()
+
+        # img teglari va ulardagi src atributlarini saqlab qolish
+        def preserve_img_tag(match):
+            tag = match.group(0)
+            # Agar tag img bo'lsa, faqat src qiymatini saqlash
+            if tag.startswith('<img') and 'src=' in tag:
+                src_match = re.search(r'src="([^"]+)"', tag)
+                if src_match:
+                    return src_match.group(1)  # src qiymatini qaytaradi
+            return ''  # Boshqa hollarda tegni olib tashlaydi
+
+        # HTML teglarini filtr qilish
+        html_without_tags = re.sub(r'<[^>]+>', preserve_img_tag, html_content)
+        return html_without_tags.strip()
