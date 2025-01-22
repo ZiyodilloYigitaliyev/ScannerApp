@@ -136,15 +136,6 @@ DATABASES = {
 # }
 
 
-# Celery asosiy sozlamalari
-CELERY_BROKER_URL = os.environ.get("REDIS_URL")  # Heroku Redis URL
-CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL")
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-
-CELERY_RESULT_BACKEND = 'django-db'
-CELERY_CACHE_BACKEND = 'django-cache'
-
 
 AUTH_PASSWORD_VALIDATORS = [
     {

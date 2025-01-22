@@ -16,11 +16,125 @@ from django.utils.timezone import make_aware
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 import logging
-from .tasks import process_html_task
 import zipfile
+from django.conf import settings
+import boto3
+import uuid
+from tempfile import NamedTemporaryFile
+import os
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 class HTMLFromZipView(APIView):
+    
+    def process_html_task(self, html_file, images, category, subject):
+        soup = BeautifulSoup(html_file, 'html.parser')
+        questions = []
+        current_question = None
+
+    # Rasmlarni S3 bucketga yuklash va URLni yangilash
+        image_urls = {image_name: self.upload_image_to_s3(image_name, image_data) for image_name, image_data in images.items()}
+
+        for img_tag in soup.find_all('img'):
+            img_src = img_tag.get('src')
+            if img_src in image_urls:
+                img_tag['src'] = image_urls[img_src]
+            else:
+                img_tag.decompose()
+
+    # "KEY" bo‘limini topish va true_answerlarni ajratib olish
+        key_answers = []
+        for p_tag in soup.find_all('p'):
+            if "KEY" in p_tag.get_text(strip=True).upper():
+                key_text = p_tag.get_text(strip=True)
+                matches = re.findall(r'(\d+)-([A-D])', key_text)  # Masalan: 1-A, 2-B kabi formatni olish
+                key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
+                break
+
+    # Savollarni ajratib olish
+        question_counter = 0
+        for p_tag in soup.find_all('p'):
+            text = p_tag.get_text(strip=True)
+            if not text:
+                continue
+
+        # Yangi savolni boshlash
+            if text[0].isdigit() and '.' in text:
+                if current_question:
+                    questions.append(current_question)
+                question_counter += 1
+                current_question = {
+                    "text": str(p_tag),
+                    "options": "",
+                    "true_answer": None,
+                    "category": category,
+                    "subject": subject
+                }
+
+        # Variantlarni qo‘shish
+            elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
+                current_question["options"] += str(p_tag)
+
+        if current_question:
+            questions.append(current_question)
+
+    # "KEY"dagi javoblarni savollarga biriktirish
+        for i, question in enumerate(questions):
+            if i < len(key_answers):
+                question["true_answer"] = key_answers[i]
+
+    # Ma'lumotlarni saqlash
+        for question in questions:
+            Zip.objects.create(
+                text=question["text"],
+                options=question["options"],
+                true_answer=question["true_answer"],
+                category=question["category"],
+                subject=question["subject"]
+            )
+
+        return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
+    
+
+
+    def upload_image_to_s3(self, image_name, image_data):
+            s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+        )
+            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+
+            file_name, file_extension = os.path.splitext(image_name)
+            unique_name = file_name
+            s3_key = f"images/{unique_name}{file_extension}"
+
+            while self.check_file_exists_in_s3(s3_client, bucket_name, s3_key):
+                unique_name = f"{uuid.uuid4().hex}{file_extension}"
+                s3_key = f'images/{unique_name}'
+
+            with NamedTemporaryFile(delete=False) as temp_file:
+                temp_file.write(image_data)
+                temp_file.close()
+                s3_client.upload_file(temp_file.name, bucket_name, s3_key)
+                os.unlink(temp_file.name)
+
+            return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
+
+    def upload_images_concurrently(self, images):
+        with ThreadPoolExecutor() as executor:
+            futures = {executor.submit(self.upload_image_to_s3, img_name, img_data): img_name for img_name, img_data in images.items()}
+            return {future.result(): images[future] for future in futures}
+    def check_file_exists_in_s3(self, s3_client, bucket_name, s3_key):
+        try:
+            s3_client.head_object(Bucket=bucket_name, Key=s3_key)
+            return True
+        except s3_client.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                return False
+            else:
+                raise
+
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
         if not zip_file:
@@ -48,9 +162,10 @@ class HTMLFromZipView(APIView):
             if not html_file:
                 return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
 
-        process_html_task.delay(html_file, images, category, subject)
+            questions = self.process_html_task(html_file, images, category, subject)
 
-        return Response({"message": "Savollarni yuklash jarayoni boshlandi. Tez orada qayta ishlanadi."}, status=202)
+
+        return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
 
         
     def get(self, request, *args, **kwargs):
