@@ -1,1 +1,1 @@
-web: uvicorn conf.asgi:application --host 0.0.0.0 --port ${PORT} --timeout 60
+web: uvicorn conf.asgi:application --host 0.0.0.0 --port ${PORT}
