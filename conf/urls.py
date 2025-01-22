@@ -6,7 +6,6 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
-    
     path("savol/", include("question.urls")),
     path("api/questions", GenerateRandomQuestionsView.as_view()),
     path('admin/', admin.site.urls),

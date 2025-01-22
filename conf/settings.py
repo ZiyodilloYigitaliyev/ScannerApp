@@ -31,6 +31,8 @@ INSTALLED_APPS = [
     'storages',
     "corsheaders",
     'rest_framework',
+    'django_celery_results',
+    'django_celery_beat',
     
 ]
 REST_FRAMEWORK = {
@@ -98,9 +100,8 @@ TEMPLATES = [
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760
 
-WSGI_APPLICATION = 'conf.asgi.application'
+WSGI_APPLICATION = 'conf.wsgi.application'
 
-SECURE_SSL_REDIRECT = True
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -135,6 +136,14 @@ DATABASES = {
 # }
 
 
+# Celery asosiy sozlamalari
+CELERY_BROKER_URL = os.environ.get("REDIS_URL")  # Heroku Redis URL
+CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL")
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_CACHE_BACKEND = 'django-cache'
 
 
 AUTH_PASSWORD_VALIDATORS = [

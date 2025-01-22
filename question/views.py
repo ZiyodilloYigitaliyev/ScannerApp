@@ -8,152 +8,19 @@ import random
 from django.db import transaction
 import re
 from django.conf import settings
-from tempfile import NamedTemporaryFile
-from rest_framework.parsers import MultiPartParser, FormParser
-import boto3
 from bs4 import BeautifulSoup
 import zipfile
-import os
 from django.utils.dateparse import parse_datetime
 from datetime import *
 from django.utils.timezone import make_aware
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-import uuid
 import logging
-from functools import lru_cache
-from concurrent.futures import ThreadPoolExecutor
+from .tasks import process_html_task
+import zipfile
+
 logger = logging.getLogger(__name__)
-
-
 class HTMLFromZipView(APIView):
-    parser_classes = [MultiPartParser, FormParser]
-    @lru_cache(maxsize=1)
-    def upload_image_to_s3(self, image_name, image_data):
-            s3_client = boto3.client(
-            's3',
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
-        )
-            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
-
-            file_name, file_extension = os.path.splitext(image_name)
-            unique_name = file_name
-            s3_key = f"images/{unique_name}{file_extension}"
-
-            while self.check_file_exists_in_s3(s3_client, bucket_name, s3_key):
-                unique_name = f"{uuid.uuid4().hex}{file_extension}"
-                s3_key = f'images/{unique_name}'
-
-            with NamedTemporaryFile(delete=False) as temp_file:
-                temp_file.write(image_data)
-                temp_file.close()
-                s3_client.upload_file(temp_file.name, bucket_name, s3_key)
-                os.unlink(temp_file.name)
-
-            return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
-
-    def upload_images_concurrently(self, images):
-        with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(self.upload_image_to_s3, img_name, img_data): img_name for img_name, img_data in images.items()}
-            return {future.result(): images[future] for future in futures}
-    def check_file_exists_in_s3(self, s3_client, bucket_name, s3_key):
-        try:
-            s3_client.head_object(Bucket=bucket_name, Key=s3_key)
-            return True
-        except s3_client.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                return False
-            else:
-                raise
-
-    # def find_key_answers(self, soup):
-    #     key_answers = {}
-    #     key_found = False
-    #     current_number = 1
-
-    #     for p_tag in soup.find_all('p'):
-    #         text = p_tag.get_text(strip=True).upper()
-    #         if "KEY" in text:  # `KEY` so'zini topish
-    #             key_found = True
-    #             continue
-    #         if key_found and re.match(r'^\d+-[A-D]$', text):  # Javoblar formatini topish (1-A, 2-B va h.k.)
-    #             match = re.match(r'^(\d+)-([A-D])$', text)
-    #             if match:
-    #                 question_number = int(match.group(1))
-    #                 answer = match.group(2)
-    #                 key_answers[question_number] = answer
-    #                 current_number += 1
-
-    #     return key_answers
-
-    def process_html(self, html_file, images, category, subject):
-        soup = BeautifulSoup(html_file, 'html.parser')
-        questions = []
-        current_question = None
-
-    # Rasmlarni S3 bucketga yuklash va URLni yangilash
-        image_urls = {img_name: self.upload_image_to_s3(img_name, img_data) for img_name, img_data in images.items()}
-
-        for img_name, img_data in images.items():
-            image_urls[img_name] = self.upload_image_to_s3(img_name, img_data)
-
-        for img_tag in soup.find_all('img'):
-            img_src = img_tag.get('src')
-            if img_src in image_urls:
-                img_tag['src'] = image_urls[img_src]
-            else:
-                img_tag.decompose()
-
-        # "KEY" bo‘limini topish va true_answerlarni ajratib olish
-        key_answers = []
-        for p_tag in soup.find_all('p'):
-            if "KEY" in p_tag.get_text(strip=True).upper():
-                key_text = p_tag.get_text(strip=True)
-                matches = re.findall(r'(\d+)-([A-D])', key_text)  # Masalan: 1-A, 2-B kabi formatni olish
-                key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]  # Sonlar bo‘yicha tartiblash
-                break
-
-        # Savollarni ajratib olish
-        question_counter = 0  # Savollarni boshidan raqamlash uchun
-        for p_tag in soup.find_all('p'):
-            text = p_tag.get_text(strip=True)
-            if not text:
-                continue
-
-            # Yangi savolni boshlash
-            if text[0].isdigit() and '.' in text:
-                if current_question:
-                    questions.append(current_question)
-                question_counter += 1
-                current_question = {
-                    "text": str(p_tag),
-                    "options": "",
-                    "true_answer": None,
-                    "category": category,
-                    "subject": subject
-                }
-
-            # Variantlarni qo‘shish
-            elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)
-
-        # Oxirgi savolni qo‘shish
-        if current_question:
-            questions.append(current_question)
-
-        # Savollarga "KEY"dagi javoblarni biriktirish
-        for i, question in enumerate(questions):
-            if i < len(key_answers):
-                question["true_answer"] = key_answers[i]
-
-        # Savollarni raqamlash
-        for idx, question in enumerate(questions, start=1):
-            question["text"] = re.sub(r'^\d+\.', f'{idx}.', question["text"])  # Raqamni yangilash
-
-        return questions
-
-   
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
         if not zip_file:
@@ -181,20 +48,10 @@ class HTMLFromZipView(APIView):
             if not html_file:
                 return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
 
-        # HTMLni qayta ishlash
-        questions = self.process_html(html_file, images, category, subject)
+        process_html_task.delay(html_file, images, category, subject)
 
-        # Ma'lumotlar bazasiga saqlash
-        for question_data in questions:
-            Zip.objects.bulk_create(
-                text=question_data["text"],
-                options=question_data["options"],
-                true_answer=question_data["true_answer"],
-                category=question_data["category"],
-                subject=question_data["subject"]
-            )
+        return Response({"message": "Savollarni yuklash jarayoni boshlandi. Tez orada qayta ishlanadi."}, status=202)
 
-        return Response({"message": "Savollar ma'lumotlar bazasiga muvaffaqiyatli saqlandi."}, status=201)
         
     def get(self, request, *args, **kwargs):
         questions = Zip.objects.all()

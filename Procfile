@@ -1,1 +1,2 @@
-web: uvicorn conf.asgi:application --host 0.0.0.0 --port ${PORT}
+web: gunicorn conf.wsgi --log-file -
+worker: celery -A conf worker --loglevel=info
