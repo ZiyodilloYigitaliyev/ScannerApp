@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class HTMLFromZipView(APIView):
     parser_classes = [MultiPartParser, FormParser]
     @lru_cache(maxsize=1)
-    async def upload_image_to_s3(self, image_name, image_data):
+    def upload_image_to_s3(self, image_name, image_data):
             s3_client = boto3.client(
             's3',
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
@@ -88,13 +88,13 @@ class HTMLFromZipView(APIView):
 
     #     return key_answers
 
-    async def process_html(self, html_file, images, category, subject):
+    def process_html(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
         questions = []
         current_question = None
 
     # Rasmlarni S3 bucketga yuklash va URLni yangilash
-        image_urls = dict(zip(images.keys(), await self.upload_images_to_s3(images)))
+        image_urls = {img_name: self.upload_image_to_s3(img_name, img_data) for img_name, img_data in images.items()}
 
         for img_name, img_data in images.items():
             image_urls[img_name] = self.upload_image_to_s3(img_name, img_data)
@@ -155,7 +155,7 @@ class HTMLFromZipView(APIView):
         return questions
 
    
-    async def post(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
         if not zip_file:
             return Response({"error": "ZIP fayl topilmadi"}, status=400)
@@ -183,7 +183,7 @@ class HTMLFromZipView(APIView):
                 return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
 
         # HTMLni qayta ishlash
-        questions = await self.process_html(html_file, images, category, subject)
+        questions = self.process_html(html_file, images, category, subject)
 
         # Ma'lumotlar bazasiga saqlash
         for question_data in questions:
