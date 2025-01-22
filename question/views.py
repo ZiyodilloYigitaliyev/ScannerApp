@@ -63,51 +63,54 @@ class HTMLFromZipView(APIView):
             else:
                 raise
 
-    def find_red_classes(soup):
-        red_classes = []
-        style_tags = soup.find_all('style')
-        for style_tag in style_tags:
-            if style_tag.string:
-                matches = re.findall(
-                     r'\.(\w+)\s*{[^}]*color:\s*(#ff0000|rgb\(255,\s*0,\s*0\)|rgba\(255,\s*0,\s*0,\s*[\d\.]+\))\s*;?',
-                     style_tag.string,
-                     re.IGNORECASE
-                )
-                red_classes.extend(match[0] for match in matches)
-            return red_classes
-        
-    def extract_true_answer(self, p_tag):
-        for span_tag in p_tag.find_all("span"):
-            style = span_tag.get("style", "")
-            if "color: #ff0000" in style.lower() or "color:  rgb(255, 0, 0)" in style.lower():
-                return span_tag.text.strip()[0]
-            return None
+    def find_key_answers(self, soup):
+        key_answers = {}
+        key_found = False
+        current_number = 1
+
+        for p_tag in soup.find_all('p'):
+            text = p_tag.get_text(strip=True).upper()
+            if "KEY" in text:  # `KEY` so'zini topish
+                key_found = True
+                continue
+            if key_found and re.match(r'^\d+-[A-D]$', text):  # Javoblar formatini topish (1-A, 2-B va h.k.)
+                match = re.match(r'^(\d+)-([A-D])$', text)
+                if match:
+                    question_number = int(match.group(1))
+                    answer = match.group(2)
+                    key_answers[question_number] = answer
+                    current_number += 1
+
+        return key_answers
 
     def process_html(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
         questions = []
         current_question = None
 
-
-        # Rasmlarni S3 ga yuklash va URLni qaytarish
+    # Rasmlarni S3 bucketga yuklash va URLni yangilash
         image_urls = {}
         for img_name, img_data in images.items():
             image_urls[img_name] = self.upload_image_to_s3(img_name, img_data)
 
-        # HTMLni tozalash va img teglarini yangilash
         for img_tag in soup.find_all('img'):
             img_src = img_tag.get('src')
             if img_src in image_urls:
-                # img tegining src atributini S3 URL bilan yangilash
                 img_tag['src'] = image_urls[img_src]
             else:
-                # src mavjud bo'lmasa, img tegini o'chirib tashlash
                 img_tag.decompose()
 
-        # Savollarni ajratib olish
-        questions = []
-        current_question = None
+        # "KEY" bo‘limini topish va true_answerlarni ajratib olish
+        key_answers = []
+        for p_tag in soup.find_all('p'):
+            if "KEY" in p_tag.get_text(strip=True).upper():
+                key_text = p_tag.get_text(strip=True)
+                matches = re.findall(r'(\d+)-([A-D])', key_text)  # Masalan: 1-A, 2-B kabi formatni olish
+                key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]  # Sonlar bo‘yicha tartiblash
+                break
 
+        # Savollarni ajratib olish
+        question_counter = 0  # Savollarni boshidan raqamlash uchun
         for p_tag in soup.find_all('p'):
             text = p_tag.get_text(strip=True)
             if not text:
@@ -117,6 +120,7 @@ class HTMLFromZipView(APIView):
             if text[0].isdigit() and '.' in text:
                 if current_question:
                     questions.append(current_question)
+                question_counter += 1
                 current_question = {
                     "text": str(p_tag),
                     "options": "",
@@ -124,19 +128,26 @@ class HTMLFromZipView(APIView):
                     "category": category,
                     "subject": subject
                 }
-            # Variantlarni qo'shish
+
+            # Variantlarni qo‘shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
                 current_question["options"] += str(p_tag)
 
-                true_answer = self.extract_true_answer(p_tag)
-                if true_answer:
-                    current_question["true_answer"] = true_answer
-
-        # Oxirgi savolni qo'shish
+        # Oxirgi savolni qo‘shish
         if current_question:
             questions.append(current_question)
 
+        # Savollarga "KEY"dagi javoblarni biriktirish
+        for i, question in enumerate(questions):
+            if i < len(key_answers):
+                question["true_answer"] = key_answers[i]
+
+        # Savollarni raqamlash
+        for idx, question in enumerate(questions, start=1):
+            question["text"] = re.sub(r'^\d+\.', f'{idx}.', question["text"])  # Raqamni yangilash
+
         return questions
+
 
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
