@@ -24,7 +24,6 @@ import logging
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
-from aiobotocore.session import get_session 
 logger = logging.getLogger(__name__)
 
 
@@ -32,12 +31,11 @@ class HTMLFromZipView(APIView):
     parser_classes = [MultiPartParser, FormParser]
     @lru_cache(maxsize=1)
     async def upload_image_to_s3(self, image_name, image_data):
-        session = get_session
-        async with session.create_client(
+            s3_client = boto3.client(
             's3',
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
-        ) as s3_client:
+        )
             bucket_name = settings.AWS_STORAGE_BUCKET_NAME
 
             file_name, file_extension = os.path.splitext(image_name)
