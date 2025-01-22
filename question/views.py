@@ -23,7 +23,6 @@ import uuid
 import logging
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
-import asyncio
 logger = logging.getLogger(__name__)
 
 
