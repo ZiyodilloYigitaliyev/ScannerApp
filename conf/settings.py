@@ -39,7 +39,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.BasicAuthentication',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 100,  # Har bir sahifada nechta element bo'lishini belgilang
+    'PAGE_SIZE': 100,
     'DEFAULT_PAGINATION_CLASS': None,
 }
 
@@ -136,8 +136,6 @@ DATABASES = {
 
 
 
-# Password validation
-# https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -155,8 +153,6 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.1/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
 

@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import QuestionList, Question, Zip
-from .serializers import ZipSerializer, QuestionSerializer
+from .serializers import ZipSerializer
 from rest_framework.permissions import AllowAny
 import random
 from django.db import transaction
@@ -21,38 +21,40 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 import uuid
 import logging
-from django.views.decorators.csrf import csrf_exempt
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
+import asyncio
+from aiobotocore.session import get_session 
 logger = logging.getLogger(__name__)
 
 
 class HTMLFromZipView(APIView):
     parser_classes = [MultiPartParser, FormParser]
     @lru_cache(maxsize=1)
-    def upload_image_to_s3(self, image_name, image_data):
-        s3_client = boto3.client(
+    async def upload_image_to_s3(self, image_name, image_data):
+        session = get_session
+        async with session.create_client(
             's3',
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
-        )
-        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+        ) as s3_client:
+            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
 
-        file_name, file_extension = os.path.splitext(image_name)
-        unique_name = file_name
-        s3_key = f"images/{unique_name}{file_extension}"
+            file_name, file_extension = os.path.splitext(image_name)
+            unique_name = file_name
+            s3_key = f"images/{unique_name}{file_extension}"
 
-        while self.check_file_exists_in_s3(s3_client, bucket_name, s3_key):
-            unique_name = f"{uuid.uuid4().hex}{file_extension}"
-            s3_key = f'images/{unique_name}'
+            while self.check_file_exists_in_s3(s3_client, bucket_name, s3_key):
+                unique_name = f"{uuid.uuid4().hex}{file_extension}"
+                s3_key = f'images/{unique_name}'
 
-        with NamedTemporaryFile(delete=False) as temp_file:
-            temp_file.write(image_data)
-            temp_file.close()
-            s3_client.upload_file(temp_file.name, bucket_name, s3_key)
-            os.unlink(temp_file.name)
+            with NamedTemporaryFile(delete=False) as temp_file:
+                temp_file.write(image_data)
+                temp_file.close()
+                s3_client.upload_file(temp_file.name, bucket_name, s3_key)
+                os.unlink(temp_file.name)
 
-        return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
+            return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
 
     def upload_images_concurrently(self, images):
         with ThreadPoolExecutor() as executor:
@@ -88,13 +90,14 @@ class HTMLFromZipView(APIView):
 
     #     return key_answers
 
-    def process_html(self, html_file, images, category, subject):
+    async def process_html(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
         questions = []
         current_question = None
 
     # Rasmlarni S3 bucketga yuklash va URLni yangilash
-        image_urls = {img_name: self.upload_image_to_s3(img_name, img_data) for img_name, img_data in images.items()}
+        image_urls = dict(zip(images.keys(), await self.upload_images_to_s3(images)))
+
         for img_name, img_data in images.items():
             image_urls[img_name] = self.upload_image_to_s3(img_name, img_data)
 
@@ -154,7 +157,7 @@ class HTMLFromZipView(APIView):
         return questions
 
    
-    def post(self, request, *args, **kwargs):
+    async def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
         if not zip_file:
             return Response({"error": "ZIP fayl topilmadi"}, status=400)
@@ -182,11 +185,11 @@ class HTMLFromZipView(APIView):
                 return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
 
         # HTMLni qayta ishlash
-        questions = self.process_html(html_file, images, category, subject)
+        questions = await self.process_html(html_file, images, category, subject)
 
         # Ma'lumotlar bazasiga saqlash
         for question_data in questions:
-            Zip.objects.create(
+            Zip.objects.bulk_create(
                 text=question_data["text"],
                 options=question_data["options"],
                 true_answer=question_data["true_answer"],
