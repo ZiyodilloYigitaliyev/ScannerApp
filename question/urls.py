@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import HTMLFromZipView, DeleteAllQuestionsView,  ListQuestionsView, FilterQuestionsView
+from .views import DeleteAllQuestionsView,  ListQuestionsView, FilterQuestionsView, HTMLFromZipView
 
 urlpatterns = [
     path('yuklash/', HTMLFromZipView.as_view(), name='upload_questions'),

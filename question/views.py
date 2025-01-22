@@ -1,4 +1,3 @@
-from django.http import JsonResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -22,9 +21,10 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 import uuid
 import logging
-from botocore.exceptions import ClientError
+from django.views.decorators.csrf import csrf_exempt
 
 logger = logging.getLogger(__name__)
+
 
 class HTMLFromZipView(APIView):
     parser_classes = [MultiPartParser, FormParser]
@@ -45,12 +45,12 @@ class HTMLFromZipView(APIView):
             unique_name = f"{file_name}_{uuid.uuid4().hex[:8]}"
             s3_key = f'images/{unique_name}{file_extension}'
 
-        temp_file = NamedTemporaryFile(delete=False)
-        temp_file.write(image_data)
-        temp_file.close()
+        with NamedTemporaryFile(delete=False) as temp_file:
+            temp_file.write(image_data)
+            temp_file.close()
+            s3_client.upload_file(temp_file.name, bucket_name, s3_key)
+            os.unlink(temp_file.name)
 
-        s3_client.upload_file(temp_file.name, bucket_name, s3_key)
-        os.unlink(temp_file.name)
         return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
     
     def check_file_exists_in_s3(self, s3_client, bucket_name, s3_key):
@@ -63,25 +63,25 @@ class HTMLFromZipView(APIView):
             else:
                 raise
 
-    def find_key_answers(self, soup):
-        key_answers = {}
-        key_found = False
-        current_number = 1
+    # def find_key_answers(self, soup):
+    #     key_answers = {}
+    #     key_found = False
+    #     current_number = 1
 
-        for p_tag in soup.find_all('p'):
-            text = p_tag.get_text(strip=True).upper()
-            if "KEY" in text:  # `KEY` so'zini topish
-                key_found = True
-                continue
-            if key_found and re.match(r'^\d+-[A-D]$', text):  # Javoblar formatini topish (1-A, 2-B va h.k.)
-                match = re.match(r'^(\d+)-([A-D])$', text)
-                if match:
-                    question_number = int(match.group(1))
-                    answer = match.group(2)
-                    key_answers[question_number] = answer
-                    current_number += 1
+    #     for p_tag in soup.find_all('p'):
+    #         text = p_tag.get_text(strip=True).upper()
+    #         if "KEY" in text:  # `KEY` so'zini topish
+    #             key_found = True
+    #             continue
+    #         if key_found and re.match(r'^\d+-[A-D]$', text):  # Javoblar formatini topish (1-A, 2-B va h.k.)
+    #             match = re.match(r'^(\d+)-([A-D])$', text)
+    #             if match:
+    #                 question_number = int(match.group(1))
+    #                 answer = match.group(2)
+    #                 key_answers[question_number] = answer
+    #                 current_number += 1
 
-        return key_answers
+    #     return key_answers
 
     def process_html(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
@@ -89,7 +89,7 @@ class HTMLFromZipView(APIView):
         current_question = None
 
     # Rasmlarni S3 bucketga yuklash va URLni yangilash
-        image_urls = {}
+        image_urls = {img_name: self.upload_image_to_s3(img_name, img_data) for img_name, img_data in images.items()}
         for img_name, img_data in images.items():
             image_urls[img_name] = self.upload_image_to_s3(img_name, img_data)
 
@@ -148,7 +148,7 @@ class HTMLFromZipView(APIView):
 
         return questions
 
-
+    @csrf_exempt
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
         if not zip_file:
@@ -190,7 +190,7 @@ class HTMLFromZipView(APIView):
             )
 
         return Response({"message": "Savollar ma'lumotlar bazasiga muvaffaqiyatli saqlandi."}, status=201)
-
+    @csrf_exempt
     def get(self, request, *args, **kwargs):
         # Ma'lumotlarni olishda rasmlar URLini qaytarish
         questions = Zip.objects.all()
