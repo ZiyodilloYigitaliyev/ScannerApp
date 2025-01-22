@@ -22,13 +22,14 @@ from rest_framework.response import Response
 import uuid
 import logging
 from django.views.decorators.csrf import csrf_exempt
-
+from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor
 logger = logging.getLogger(__name__)
 
 
 class HTMLFromZipView(APIView):
     parser_classes = [MultiPartParser, FormParser]
-
+    @lru_cache(maxsize=1)
     def upload_image_to_s3(self, image_name, image_data):
         s3_client = boto3.client(
             's3',
@@ -42,8 +43,8 @@ class HTMLFromZipView(APIView):
         s3_key = f"images/{unique_name}{file_extension}"
 
         while self.check_file_exists_in_s3(s3_client, bucket_name, s3_key):
-            unique_name = f"{file_name}_{uuid.uuid4().hex[:8]}"
-            s3_key = f'images/{unique_name}{file_extension}'
+            unique_name = f"{uuid.uuid4().hex}{file_extension}"
+            s3_key = f'images/{unique_name}'
 
         with NamedTemporaryFile(delete=False) as temp_file:
             temp_file.write(image_data)
@@ -52,7 +53,11 @@ class HTMLFromZipView(APIView):
             os.unlink(temp_file.name)
 
         return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
-    
+
+    def upload_images_concurrently(self, images):
+        with ThreadPoolExecutor() as executor:
+            futures = {executor.submit(self.upload_image_to_s3, img_name, img_data): img_name for img_name, img_data in images.items()}
+            return {future.result(): images[future] for future in futures}
     def check_file_exists_in_s3(self, s3_client, bucket_name, s3_key):
         try:
             s3_client.head_object(Bucket=bucket_name, Key=s3_key)
@@ -148,7 +153,7 @@ class HTMLFromZipView(APIView):
 
         return questions
 
-    @csrf_exempt
+   
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
         if not zip_file:
@@ -190,9 +195,8 @@ class HTMLFromZipView(APIView):
             )
 
         return Response({"message": "Savollar ma'lumotlar bazasiga muvaffaqiyatli saqlandi."}, status=201)
-    @csrf_exempt
+        
     def get(self, request, *args, **kwargs):
-        # Ma'lumotlarni olishda rasmlar URLini qaytarish
         questions = Zip.objects.all()
         result = []
 
@@ -205,7 +209,6 @@ class HTMLFromZipView(APIView):
                 "subject": question.subject
             }
 
-            # HTMLni qayta ishlash va rasmlarni to'g'ri URL bilan yangilash
             soup = BeautifulSoup(question.text, 'html.parser')
             for img_tag in soup.find_all('img'):
                 img_src = img_tag.get('src')
@@ -276,9 +279,9 @@ class DeleteAllQuestionsView(APIView):
 
 
 class QuestionPagination(PageNumberPagination):
-    page_size = 100  # Default page size
-    page_size_query_param = 'limit'  # Query param to set page size dynamically
-    max_page_size = 1000  # Maximum limit per page
+    page_size = 100 
+    page_size_query_param = 'limit'  
+    max_page_size = 1000  
 
 
 class GenerateRandomQuestionsView(APIView):
