@@ -26,6 +26,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 class HTMLFromZipView(APIView):
+
+    def clean_img_tag(self, img_tag, new_src):
+        img_tag.attrs = {'src': new_src}
     
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
