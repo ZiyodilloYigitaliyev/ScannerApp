@@ -33,23 +33,28 @@ class HTMLFromZipView(APIView):
         current_question = None
 
         # Rasmlarni S3 bucketga yuklash va URLni yangilash
-        image_urls = {image_name: self.upload_image_to_s3(image_name, image_data) for image_name, image_data in images.items()}
+        image_urls = {}
+        for image_name, image_data in images.items():
+            try:
+                uploaded_url = self.upload_image_to_s3(image_name, image_data)
+                image_urls[image_name] = uploaded_url
+            except Exception as e:
+                print(f"Error uploading {image_name}: {e}")
 
+        # <img> teglarini tozalash va yangilash
         for img_tag in soup.find_all('img'):
             img_src = img_tag.get('src')
-            if img_src in image_urls:
-                # Faqatgina <img src="url" /> ko'rinishiga keltiramiz
-                img_tag.attrs.clear()  # Barcha atributlarni o'chiramiz
-                img_tag['src'] = image_urls[img_src]
+            if img_src and img_src in image_urls:
+                self.clean_img_tag(img_tag, image_urls[img_src])
             else:
-                img_tag.decompose()  # Rasmni bucketga yuklab bo'lmasa, o'chirib tashlaymiz
+                img_tag.decompose()  # <img> tegi bucketga yuklanmagan bo'lsa, o'chiramiz
 
         # "KEY" bo‘limini topish va true_answerlarni ajratib olish
         key_answers = []
         for p_tag in soup.find_all('p'):
             if "KEY" in p_tag.get_text(strip=True).upper():
                 key_text = p_tag.get_text(strip=True)
-                matches = re.findall(r'(\d+)-([A-D])', key_text) 
+                matches = re.findall(r'(\d+)-([A-D])', key_text)
                 key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
                 break
 
