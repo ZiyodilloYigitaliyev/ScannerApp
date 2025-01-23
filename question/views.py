@@ -30,6 +30,13 @@ class HTMLFromZipView(APIView):
     def clean_img_tag(self, img_tag, new_src):
         img_tag.attrs = {'src': new_src}
     
+    def clean_html_tags(self, html):
+        """
+        Faqqat HTML teglarni olib tashlaydi va matnni o'zgarmagan holda qaytaradi.
+        """
+        soup = BeautifulSoup(html, 'html.parser')
+        return soup.get_text()
+
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
         questions = []
@@ -74,7 +81,7 @@ class HTMLFromZipView(APIView):
                     questions.append(current_question)
                 question_counter += 1
                 current_question = {
-                    "text": str(p_tag),
+                    "text": self.clean_html_tags(str(p_tag)),  # HTML teglardan tozalangan holda saqlanadi
                     "options": "",
                     "true_answer": None,
                     "category": category,
@@ -83,7 +90,7 @@ class HTMLFromZipView(APIView):
 
             # Variantlarni qo‘shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)
+                current_question["options"] += self.clean_html_tags(str(p_tag))  # Variantlarni tozalash
 
         if current_question:
             questions.append(current_question)
@@ -104,6 +111,7 @@ class HTMLFromZipView(APIView):
             )
 
         return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
+
     
 
 
