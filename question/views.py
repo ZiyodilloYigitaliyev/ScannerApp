@@ -32,33 +32,35 @@ class HTMLFromZipView(APIView):
         questions = []
         current_question = None
 
-    # Rasmlarni S3 bucketga yuklash va URLni yangilash
+        # Rasmlarni S3 bucketga yuklash va URLni yangilash
         image_urls = {image_name: self.upload_image_to_s3(image_name, image_data) for image_name, image_data in images.items()}
 
         for img_tag in soup.find_all('img'):
             img_src = img_tag.get('src')
             if img_src in image_urls:
+                # Faqatgina <img src="url" /> ko'rinishiga keltiramiz
+                img_tag.attrs.clear()  # Barcha atributlarni o'chiramiz
                 img_tag['src'] = image_urls[img_src]
             else:
-                img_tag.decompose()
+                img_tag.decompose()  # Rasmni bucketga yuklab bo'lmasa, o'chirib tashlaymiz
 
-    # "KEY" bo‘limini topish va true_answerlarni ajratib olish
+        # "KEY" bo‘limini topish va true_answerlarni ajratib olish
         key_answers = []
         for p_tag in soup.find_all('p'):
             if "KEY" in p_tag.get_text(strip=True).upper():
                 key_text = p_tag.get_text(strip=True)
-                matches = re.findall(r'(\d+)-([A-D])', key_text)  # Masalan: 1-A, 2-B kabi formatni olish
+                matches = re.findall(r'(\d+)-([A-D])', key_text) 
                 key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
                 break
 
-    # Savollarni ajratib olish
+        # Savollarni ajratib olish
         question_counter = 0
         for p_tag in soup.find_all('p'):
             text = p_tag.get_text(strip=True)
             if not text:
                 continue
 
-        # Yangi savolni boshlash
+            # Yangi savolni boshlash
             if text[0].isdigit() and '.' in text:
                 if current_question:
                     questions.append(current_question)
@@ -71,19 +73,19 @@ class HTMLFromZipView(APIView):
                     "subject": subject
                 }
 
-        # Variantlarni qo‘shish
+            # Variantlarni qo‘shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
                 current_question["options"] += str(p_tag)
 
         if current_question:
             questions.append(current_question)
 
-    # "KEY"dagi javoblarni savollarga biriktirish
+        # "KEY"dagi javoblarni savollarga biriktirish
         for i, question in enumerate(questions):
             if i < len(key_answers):
                 question["true_answer"] = key_answers[i]
 
-    # Ma'lumotlarni saqlash
+        # Ma'lumotlarni saqlash
         for question in questions:
             Zip.objects.create(
                 text=question["text"],
@@ -116,7 +118,7 @@ class HTMLFromZipView(APIView):
             with NamedTemporaryFile(delete=False) as temp_file:
                 temp_file.write(image_data)
                 temp_file.close()
-                s3_client.upload_file(temp_file.name, bucket_name, s3_key)
+                s3_client.upload_file(temp_file.name, bucket_name, s3_key,  ExtraArgs={"ACL": "public-read"})
                 os.unlink(temp_file.name)
 
             return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
