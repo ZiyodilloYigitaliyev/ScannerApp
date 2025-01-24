@@ -264,10 +264,10 @@ class DeleteAllQuestionsView(APIView):
         )
 
 
-class QuestionPagination(PageNumberPagination):
-    page_size = 100 
-    page_size_query_param = 'limit'  
-    max_page_size = 1000  
+# class QuestionPagination(PageNumberPagination):
+#     page_size = 100 
+#     page_size_query_param = 'limit'  
+#     max_page_size = 1000  
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
@@ -302,13 +302,9 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            # Paginationni qo'llash
-            paginator = QuestionPagination()
-            paginated_lists = paginator.paginate_queryset(question_lists, request)
-
-            # Javob uchun ma'lumotlarni tayyorlash
+            # Paginationni olib tashlash va ma'lumotlarni to'g'ridan-to'g'ri tayyorlash
             response_data = []
-            for question_list in paginated_lists:
+            for question_list in question_lists:
                 categories = list(
                     question_list.questions.values_list(
                         "category", flat=True
@@ -360,11 +356,12 @@ class GenerateRandomQuestionsView(APIView):
 
                 response_data.append(list_data)
 
-            # Paginated javobni qaytarish
-            return paginator.get_paginated_response(response_data)
+            # To'g'ridan-to'g'ri javobni qaytarish
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
 
     def post(self, request):
         try:
