@@ -23,26 +23,44 @@ import uuid
 from tempfile import NamedTemporaryFile
 import os
 from concurrent.futures import ThreadPoolExecutor
-
+import requests
 logger = logging.getLogger(__name__)
+
+
 class HTMLFromZipView(APIView):
+
+    def get(self, request, *args, **kwargs):
+        questions = Zip.objects.all()
+        result = []
+
+        for question in questions:
+            question_data = {
+                "text": question.text,
+                "options": question.options,
+                "true_answer": question.true_answer,
+                "category": question.category,
+                "subject": question.subject
+            }
+
+            soup = BeautifulSoup(question.text, 'html.parser')
+            for img_tag in soup.find_all('img'):
+                img_src = img_tag.get('src')
+                if img_src and img_src.startswith('images/'):
+                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
+
+            question_data["text"] = str(soup)
+            result.append(question_data)
+
+        return Response(result, status=200)
 
     def clean_img_tag(self, img_tag, new_src):
         img_tag.attrs = {'src': new_src}
     
-    def clean_html_tags(self, html):
-        """
-        Faqqat HTML teglarni olib tashlaydi va matnni o'zgarmagan holda qaytaradi.
-        """
-        soup = BeautifulSoup(html, 'html.parser')
-        return soup.get_text()
-
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
         questions = []
         current_question = None
 
-        # Rasmlarni S3 bucketga yuklash va URLni yangilash
         image_urls = {}
         for image_name, image_data in images.items():
             try:
@@ -81,7 +99,7 @@ class HTMLFromZipView(APIView):
                     questions.append(current_question)
                 question_counter += 1
                 current_question = {
-                    "text": self.clean_html_tags(str(p_tag)),  # HTML teglardan tozalangan holda saqlanadi
+                    "text": str(p_tag),  # HTML teglardan tozalamasdan saqlaymiz
                     "options": "",
                     "true_answer": None,
                     "category": category,
@@ -90,7 +108,7 @@ class HTMLFromZipView(APIView):
 
             # Variantlarni qo‘shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += self.clean_html_tags(str(p_tag))  # Variantlarni tozalash
+                current_question["options"] += str(p_tag)  # Variantlarni tozalash
 
         if current_question:
             questions.append(current_question)
@@ -112,7 +130,37 @@ class HTMLFromZipView(APIView):
 
         return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
 
-    
+    def post(self, request, *args, **kwargs):
+        zip_file = request.FILES.get('file')
+        if not zip_file:
+            return Response({"error": "ZIP fayl topilmadi"}, status=400)
+
+        category = request.data.get('category')
+        subject = request.data.get('subject')
+
+        if not category or not subject:
+            return Response(
+                {"error": "Category va Subject majburiy maydonlardir."},
+                status=400
+            )
+
+        with zipfile.ZipFile(zip_file, 'r') as z:
+            html_file = None
+            images = {}
+
+            for file_name in z.namelist():
+                if file_name.endswith('.html'):
+                    html_file = z.read(file_name).decode('utf-8')
+                elif file_name.startswith('images/'):
+                    images[file_name] = z.read(file_name)
+
+            if not html_file:
+                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
+
+            questions = self.process_html_task(html_file, images, category, subject)
+
+        return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
+
 
 
     def upload_image_to_s3(self, image_name, image_data):
@@ -152,63 +200,6 @@ class HTMLFromZipView(APIView):
                 return False
             else:
                 raise
-
-    def post(self, request, *args, **kwargs):
-        zip_file = request.FILES.get('file')
-        if not zip_file:
-            return Response({"error": "ZIP fayl topilmadi"}, status=400)
-
-        category = request.data.get('category')
-        subject = request.data.get('subject')
-
-        if not category or not subject:
-            return Response(
-                {"error": "Category va Subject majburiy maydonlardir."},
-                status=400
-            )
-
-        with zipfile.ZipFile(zip_file, 'r') as z:
-            html_file = None
-            images = {}
-
-            for file_name in z.namelist():
-                if file_name.endswith('.html'):
-                    html_file = z.read(file_name).decode('utf-8')
-                elif file_name.startswith('images/'):
-                    images[file_name] = z.read(file_name)
-
-            if not html_file:
-                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
-
-            questions = self.process_html_task(html_file, images, category, subject)
-
-
-        return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
-
-        
-    def get(self, request, *args, **kwargs):
-        questions = Zip.objects.all()
-        result = []
-
-        for question in questions:
-            question_data = {
-                "text": question.text,
-                "options": question.options,
-                "true_answer": question.true_answer,
-                "category": question.category,
-                "subject": question.subject
-            }
-
-            soup = BeautifulSoup(question.text, 'html.parser')
-            for img_tag in soup.find_all('img'):
-                img_src = img_tag.get('src')
-                if img_src and img_src.startswith('images/'):
-                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
-
-            question_data["text"] = str(soup)
-            result.append(question_data)
-
-        return Response(result, status=200)
 
 
 
@@ -272,7 +263,6 @@ class QuestionPagination(PageNumberPagination):
     page_size = 100 
     page_size_query_param = 'limit'  
     max_page_size = 1000  
-
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
@@ -463,13 +453,37 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            return Response(status=status.HTTP_201_CREATED)
+            # Generating PDF and posting to PDFMonkey
+            pdf_response = self.generate_pdf(final_lists)
+            return Response(pdf_response, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    def generate_pdf(self, data):
+        url = " https://us1.pdfgeneratorapi.com/api/v4/templates"
+
+        headers = {
+             'Authorization': "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiI3YmIwNzVlZjcxN2RlMWRhZTQ5NzY1ODQ2ZTEyMWY0NTMzYWJlOGVjNGIxNDgwYTllN2Q0NGU4NzRmZjU3N2ZiIiwic3ViIjoiNGRtMW4yMTdAZ21haWwuY29tIiwiZXhwIjoxNzM3Njg1NDc1fQ.5taUHkCMPNLlo6lrh8Ul518uaZ9zy2aEl0vb8p06ZJY"
+        }
+
+        # Example data for PDF generation. Modify according to your needs.
+        payload = {
+            "template_id": "163090D3-D458-4E6F-88BF-E324AD4249C0",
+            "data": {
+                "questions": data
+            }
+        }
+
+        response = requests.post(url, headers=headers, json=payload)
+
+        if response.status_code == 200:
+            return response.json()  # Contains PDF URL and other info
+        else:
+            return {"error": "Failed to generate PDF", "details": response.text}
 
     @staticmethod
     def get_random_items(source_list, count):

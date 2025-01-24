@@ -33,7 +33,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_celery_results',
     'django_celery_beat',
-    'pdf_generator',
     
 ]
 REST_FRAMEWORK = {
@@ -115,27 +114,27 @@ AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = "public-read"
 
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+# DATABASE_URL = os.getenv("DATABASE_URL")
 
-url = urlparse(DATABASE_URL)
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': url.path[1:],  # dbname
-        'USER': url.username,  # user
-        'PASSWORD': url.password,  # password
-        'HOST': url.hostname,  # host
-        'PORT': url.port,
-    }
-}
+# url = urlparse(DATABASE_URL)
 
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': url.path[1:],  # dbname
+#         'USER': url.username,  # user
+#         'PASSWORD': url.password,  # password
+#         'HOST': url.hostname,  # host
+#         'PORT': url.port,
 #     }
 # }
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
 
 
 
@@ -177,25 +176,25 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL =  MEDIA_URL='/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-CORS_ORIGIN_WHITELIST = [
-    'http://127.0.0.1:8000',
-    'https://scan-app-a3872b370d3e.herokuapp.com',
-    'http://localhost:3000',
+# CORS_ORIGIN_WHITELIST = [
+#     'http://127.0.0.1:8000',
+#     'https://scan-app-a3872b370d3e.herokuapp.com',
+#     'http://localhost:3000',
     
-]
+# ]
 
 
-CSRF_TRUSTED_ORIGINS = [
-    'http://127.0.0.1:8000',
-    'https://scan-app-a3872b370d3e.herokuapp.com',
-    'http://localhost:3000',
+# CSRF_TRUSTED_ORIGINS = [
+#     'http://127.0.0.1:8000',
+#     'https://scan-app-a3872b370d3e.herokuapp.com',
+#     'http://localhost:3000',
     
-]
+# ]
 
-CORS_ALLOWED_ORIGINS = [
-    'http://127.0.0.1:8000',
-    'https://scan-app-a3872b370d3e.herokuapp.com',
-    'http://localhost:3000',
-]
+# CORS_ALLOWED_ORIGINS = [
+#     'http://127.0.0.1:8000',
+#     'https://scan-app-a3872b370d3e.herokuapp.com',
+#     'http://localhost:3000',
+# ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
