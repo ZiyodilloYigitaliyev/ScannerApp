@@ -23,11 +23,11 @@ import uuid
 from tempfile import NamedTemporaryFile
 import os
 from concurrent.futures import ThreadPoolExecutor
-import requests
 logger = logging.getLogger(__name__)
 
 
 class HTMLFromZipView(APIView):
+    permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
         questions = Zip.objects.all()
@@ -204,6 +204,8 @@ class HTMLFromZipView(APIView):
 
 
 class FilterQuestionsView(APIView):
+    permission_classes = [AllowAny]
+
     def get(self, request, *args, **kwargs):
         id_list = request.query_params.getlist(
             "id"
@@ -238,6 +240,7 @@ class FilterQuestionsView(APIView):
 
 
 class ListQuestionsView(APIView):
+    permission_classes = [AllowAny]
     def get(self, request):
         questions = Zip.objects.all()
         serializer = ZipSerializer(questions, many=True)
@@ -251,6 +254,8 @@ class ListQuestionsView(APIView):
 
 
 class DeleteAllQuestionsView(APIView):
+    permission_classes = [AllowAny]
+    
     def delete(self, request):
         Zip.objects.all().delete()
         return Response(
@@ -463,27 +468,6 @@ class GenerateRandomQuestionsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    def generate_pdf(self, data):
-        url = " https://us1.pdfgeneratorapi.com/api/v4/templates"
-
-        headers = {
-             'Authorization': "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiI3YmIwNzVlZjcxN2RlMWRhZTQ5NzY1ODQ2ZTEyMWY0NTMzYWJlOGVjNGIxNDgwYTllN2Q0NGU4NzRmZjU3N2ZiIiwic3ViIjoiNGRtMW4yMTdAZ21haWwuY29tIiwiZXhwIjoxNzM3Njg1NDc1fQ.5taUHkCMPNLlo6lrh8Ul518uaZ9zy2aEl0vb8p06ZJY"
-        }
-
-        # Example data for PDF generation. Modify according to your needs.
-        payload = {
-            "template_id": "163090D3-D458-4E6F-88BF-E324AD4249C0",
-            "data": {
-                "questions": data
-            }
-        }
-
-        response = requests.post(url, headers=headers, json=payload)
-
-        if response.status_code == 200:
-            return response.json()  # Contains PDF URL and other info
-        else:
-            return {"error": "Failed to generate PDF", "details": response.text}
 
     @staticmethod
     def get_random_items(source_list, count):
