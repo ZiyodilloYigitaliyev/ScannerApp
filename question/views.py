@@ -456,8 +456,7 @@ class GenerateRandomQuestionsView(APIView):
                     )
 
             # Generating PDF and posting to PDFMonkey
-            pdf_response = self.generate_pdf(final_lists)
-            return Response(pdf_response, status=status.HTTP_201_CREATED)
+            return Response({"success: Upload Successfully"}, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response(
