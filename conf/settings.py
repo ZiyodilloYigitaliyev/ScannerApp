@@ -39,10 +39,10 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
-    ),
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 100,
-    'DEFAULT_PAGINATION_CLASS': None,
+     ),
+#     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+#     'PAGE_SIZE': 100,
+#     'DEFAULT_PAGINATION_CLASS': None,
 }
 
 MIDDLEWARE = [
@@ -179,7 +179,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 CORS_ORIGIN_WHITELIST = [
     'http://127.0.0.1:8000',
     'https://scan-app-9206bf041b06.herokuapp.com',
-    'http://localhost:3000',
+    'http://localhost:5000',
     
 ]
 
@@ -187,14 +187,14 @@ CORS_ORIGIN_WHITELIST = [
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
     'https://scan-app-9206bf041b06.herokuapp.com',
-    'http://localhost:3000',
+    'http://localhost:5000',
     
 ]
 
 CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:8000',
     'https://scan-app-9206bf041b06.herokuapp.com/',
-    'http://localhost:3000',
+    'http://localhost:5000',
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
