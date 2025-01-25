@@ -407,11 +407,11 @@ class GenerateRandomQuestionsView(APIView):
                         final_questions[category].append(
                             {
                                 "category": category,
-                                "subject": self.strip_html_tags(
+                                "subject": self(
                                     question.get("subject", "")
                                 ),
-                                "text": self.strip_html_tags(question["text"]),
-                                "options": self.strip_html_tags(
+                                "text": self(question["text"]),
+                                "options": self(
                                     question.get("options", "")
                                 ),
                                 "true_answer": question.get("true_answer", ""),

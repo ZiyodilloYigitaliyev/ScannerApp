@@ -19,5 +19,3 @@ class QuestionListSerializer(serializers.ModelSerializer):
         model = QuestionList
         fields = ['questions', 'list_id', 'question_class', 'created_at'] 
 
-
-#
