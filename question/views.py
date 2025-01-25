@@ -161,10 +161,6 @@ class HTMLFromZipView(APIView):
 
         return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
 
-
-
-
-class UploadImages_S3(APIView):
     def upload_image_to_s3(self, image_name, image_data):
             s3_client = boto3.client(
             's3',
