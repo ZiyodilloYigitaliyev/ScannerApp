@@ -452,9 +452,6 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            # Generating PDF and posting to PDFMonkey
-            return Response({"success: Upload Successfully"}, status=status.HTTP_201_CREATED)
-
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
@@ -475,10 +472,10 @@ class GenerateRandomQuestionsView(APIView):
             question["text"] = re.sub(r"^\d+\.\s*", "", question["text"])
         return questions
 
-    @staticmethod
-    def strip_html_tags(html_content):
-        if not html_content:
-            return ""
+ # @staticmethod
+    # def strip_html_tags(html_content):
+    #     if not html_content:
+    #         return ""
 
         # def preserve_img_tag(match):
         #     tag = match.group(0)
