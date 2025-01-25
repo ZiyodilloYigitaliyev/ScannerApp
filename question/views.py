@@ -360,8 +360,11 @@ class GenerateRandomQuestionsView(APIView):
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 
+
+
     def post(self, request):
         try:
+        # Ma'lumotni olish
             if isinstance(request.data, list):
                 request_data = request.data[0]
             else:
@@ -369,7 +372,7 @@ class GenerateRandomQuestionsView(APIView):
 
             questions_num = request_data.get("num", {})
             questions_data = request_data.get("data", {})
-            additional_value = questions_num.get("additional_value")
+            additional_value = questions_num.get("additional_value", 0)
             question_class = questions_num.get("class", "")
 
             majburiy_fan_1 = questions_data.get("Majburiy_Fan_1", [])
@@ -382,20 +385,14 @@ class GenerateRandomQuestionsView(APIView):
 
             for _ in range(additional_value):
                 new_list = {
-                    "Majburiy_Fan_1": self.clean_questions(
-                        self.get_random_items(majburiy_fan_1, 10)
-                    ),
-                    "Majburiy_Fan_2": self.clean_questions(
-                        self.get_random_items(majburiy_fan_2, 10)
-                    ),
-                    "Majburiy_Fan_3": self.clean_questions(
-                        self.get_random_items(majburiy_fan_3, 10)
-                    ),
-                    "Fan_1": self.clean_questions(self.get_random_items(fan_1, 30)),
-                    "Fan_2": self.clean_questions(self.get_random_items(fan_2, 30)),
+                    "Majburiy_Fan_1": self.get_random_items(majburiy_fan_1, 10),
+                    "Majburiy_Fan_2": self.get_random_items(majburiy_fan_2, 10),
+                    "Majburiy_Fan_3": self.get_random_items(majburiy_fan_3, 10),
+                    "Fan_1": self.get_random_items(fan_1, 30),
+                    "Fan_2": self.get_random_items(fan_2, 30),
                 }
 
-                # Bazadan oxirgi `list_id` ni olish
+            # Bazadan oxirgi `list_id` ni olish
                 last_list = QuestionList.objects.order_by("-list_id").first()
                 list_id = (last_list.list_id + 1) if last_list else 100000
 
@@ -407,13 +404,9 @@ class GenerateRandomQuestionsView(APIView):
                         final_questions[category].append(
                             {
                                 "category": category,
-                                "subject": self(
-                                    question.get("subject", "")
-                                ),
-                                "text": self(question["text"]),
-                                "options": self(
-                                    question.get("options", "")
-                                ),
+                                "subject": question.get("subject", ""),
+                                "text": question.get("text", ""),
+                                "options": question.get("options", ""),
                                 "true_answer": question.get("true_answer", ""),
                                 "image": question.get("image", None),
                                 "order": global_order_counter,
@@ -432,7 +425,7 @@ class GenerateRandomQuestionsView(APIView):
                 try:
                     with transaction.atomic():
                         question_list = QuestionList.objects.create(
-                            list_id=list_id, question_class=question_class
+                        list_id=list_id, question_class=question_class
                         )
                         for category, questions in final_questions.items():
                             for question in questions:
@@ -452,12 +445,16 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
+            return Response(
+                {"success": "Questions saved successfully", "data": final_lists},
+                status=status.HTTP_201_CREATED,
+            )
+
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
 
     @staticmethod
     def get_random_items(source_list, count):
@@ -466,24 +463,3 @@ class GenerateRandomQuestionsView(APIView):
         count = min(count, len(source_list))
         return random.sample(source_list, count)
 
-    @staticmethod
-    def clean_questions(questions):
-        for question in questions:
-            question["text"] = re.sub(r"^\d+\.\s*", "", question["text"])
-        return questions
-
- # @staticmethod
-    # def strip_html_tags(html_content):
-    #     if not html_content:
-    #         return ""
-
-        # def preserve_img_tag(match):
-        #     tag = match.group(0)
-        #     if tag.startswith("<img") and "src=" in tag:
-        #         src_match = re.search(r'src="([^"]+)"', tag)
-        #         if src_match:
-        #             return src_match.group(1)
-        #     return ""
-
-        # html_without_tags = re.sub(r"<[^>]+>", preserve_img_tag, html_content)
-        # return html_without_tags.strip()
