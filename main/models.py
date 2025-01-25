@@ -2,6 +2,9 @@ from django.db import models
 from question.models import Zip
 
 class ProcessedTest(models.Model):
+    file = models.FileField(upload_to="uploaded_files/")
+    bubbles = models.JSONField()
+    uploaded_at = models.DateTimeField(auto_now_add=True)
     student_id = models.BigAutoField(primary_key=True)
     total_score = models.FloatField(default=0)
     image_url = models.URLField(null=True, blank=True)

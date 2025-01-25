@@ -99,7 +99,7 @@ class HTMLFromZipView(APIView):
                     questions.append(current_question)
                 question_counter += 1
                 current_question = {
-                    "text": str(p_tag),  # HTML teglardan tozalamasdan saqlaymiz
+                    "text": str(p_tag),
                     "options": "",
                     "true_answer": None,
                     "category": category,
@@ -163,6 +163,8 @@ class HTMLFromZipView(APIView):
 
 
 
+
+class UploadImages_S3(APIView):
     def upload_image_to_s3(self, image_name, image_data):
             s3_client = boto3.client(
             's3',
@@ -200,7 +202,6 @@ class HTMLFromZipView(APIView):
                 return False
             else:
                 raise
-
 
 
 class FilterQuestionsView(APIView):
@@ -483,13 +484,13 @@ class GenerateRandomQuestionsView(APIView):
         if not html_content:
             return ""
 
-        def preserve_img_tag(match):
-            tag = match.group(0)
-            if tag.startswith("<img") and "src=" in tag:
-                src_match = re.search(r'src="([^"]+)"', tag)
-                if src_match:
-                    return src_match.group(1)
-            return ""
+        # def preserve_img_tag(match):
+        #     tag = match.group(0)
+        #     if tag.startswith("<img") and "src=" in tag:
+        #         src_match = re.search(r'src="([^"]+)"', tag)
+        #         if src_match:
+        #             return src_match.group(1)
+        #     return ""
 
-        html_without_tags = re.sub(r"<[^>]+>", preserve_img_tag, html_content)
-        return html_without_tags.strip()
+        # html_without_tags = re.sub(r"<[^>]+>", preserve_img_tag, html_content)
+        # return html_without_tags.strip()

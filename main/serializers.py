@@ -11,7 +11,7 @@ class ProcessedTestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProcessedTest
-        fields = ['student_id', 'image_url', 'results']
+        fields = ['file', 'bubbles', 'student_id', 'image_url', 'results']
 
 
 class ZipFileSerializer(serializers.Serializer):
