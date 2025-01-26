@@ -2,7 +2,7 @@ from django.db import models
 from question.models import Zip
 
 class ProcessedTest(models.Model):
-    file = models.URLField()
+    file = models.JSONField()
     bubbles = models.JSONField()
     uploaded_at = models.DateTimeField(auto_now_add=True)
     student_id = models.BigAutoField(primary_key=True)
