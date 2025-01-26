@@ -11,6 +11,6 @@ class ProcessedTestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProcessedTest
-        fields = ['file', 'bubbles', 'student_id', 'image_url', 'results']
+        fields = ['file', 'bubbles', 'student_id', 'results']
 
 
