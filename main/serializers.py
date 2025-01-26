@@ -7,8 +7,15 @@ class ProcessedTestResultSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class ProcessedTestSerializer(serializers.Serializer):
-    file = serializers.FileField()
-    bubbles = serializers.JSONField()
+    file = serializers.FileField(required=True)
+    bubbles = serializers.ListField(
+        child=serializers.ListField(
+            child=serializers.IntegerField(),
+            min_length=2,
+            max_length=2
+        ),
+        required=True
+    )
 # class ProcessedTestSerializer(serializers.ModelSerializer):
 #     results = ProcessedTestResultSerializer(many=True, read_only=True)
 #
