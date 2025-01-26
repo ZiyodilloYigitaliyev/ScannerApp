@@ -155,10 +155,11 @@ def check_marked_circle(image_path, coordinates, threshold=200):
 
     for question, options in coordinates.items():
         for option, coord in options.items():
-            x, y = map(int, coord)
+            x, y = map(int, coord)  # Ehtimoliy muammo shu yerda
             marked_answers[question] = option
 
     return marked_answers
+
 
 
 def extract_id(image_path, id_coordinates, threshold=200):
