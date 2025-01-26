@@ -6,11 +6,14 @@ class ProcessedTestResultSerializer(serializers.ModelSerializer):
         model = ProcessedTestResult
         fields = "__all__"
 
-class ProcessedTestSerializer(serializers.ModelSerializer):
-    results = ProcessedTestResultSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = ProcessedTest
-        fields = ['file', 'bubbles', 'student_id', 'results']
+class ProcessedTestSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    bubbles = serializers.JSONField()
+# class ProcessedTestSerializer(serializers.ModelSerializer):
+#     results = ProcessedTestResultSerializer(many=True, read_only=True)
+#
+#     class Meta:
+#         model = ProcessedTest
+#         fields = ['file', 'bubbles', 'student_id', 'results']
 
 
