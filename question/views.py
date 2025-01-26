@@ -6,7 +6,6 @@ from .serializers import ZipSerializer
 from rest_framework.permissions import AllowAny
 import random
 from django.db import transaction
-import re
 from django.conf import settings
 #from bs4 import BeautifulSoup
 from django.utils.dateparse import parse_datetime
@@ -14,15 +13,14 @@ from datetime import *
 from django.utils.timezone import make_aware
 from rest_framework.response import Response
 import logging
-import zipfile
 from django.conf import settings
 import boto3
 import uuid
 from tempfile import NamedTemporaryFile
 import os
 from concurrent.futures import ThreadPoolExecutor
-from docx import Document
-import re
+from .utils import extract_questions_with_images_and_save
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,80 +28,26 @@ logger = logging.getLogger(__name__)
 class WordFileProcessorView(APIView):
     permission_classes = [AllowAny]
 
-    def extract_questions_from_docx(self, docx_file):
-        document = Document(docx_file)
-        questions = []
-        current_question = None
-        key_answers = []
-        question_counter = 0
-
-        for paragraph in document.paragraphs:
-            text = paragraph.text.strip()
-
-            # Yangi savolni boshlash
-            if text and text[0].isdigit() and '.' in text:
-                if current_question:
-                    questions.append(current_question)
-                question_counter += 1
-                current_question = {
-                    "text": text,
-                    "options": "",
-                    "true_answer": None,
-                }
-
-            # Variantlarni qo‘shish
-            elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += text + '\n'
-
-            # Javoblarni topish ("KEY" qismi bo'lsa)
-            elif "KEY" in text.upper():
-                matches = re.findall(r'(\d+)-([A-D])', text)
-                key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
-
-        if current_question:
-            questions.append(current_question)
-
-        # "KEY"dagi javoblarni savollarga biriktirish
-        for i, question in enumerate(questions):
-            if i < len(key_answers):
-                question["true_answer"] = key_answers[i]
-
-        return questions
 
     def post(self, request, *args, **kwargs):
-        """
-        POST metodi Word fayldan savollarni o'qib, kategoriya va fan bilan birga ma'lumotlar bazasiga saqlaydi.
-        """
         word_file = request.FILES.get('file')
         category = request.data.get('category')
         subject = request.data.get('subject')
 
-        # Tekshirish
         if not word_file:
             return Response({"error": "Word fayl topilmadi"}, status=400)
 
         if not category or not subject:
-            return Response({"error": "Category va Subject maydonlari majburiy."}, status=400)
+            return Response({"error": "Category va Subject majburiy maydonlardir."}, status=400)
 
-        # Fayldan savollarni ajratib olish
-        questions = self.extract_questions_from_docx(word_file)
-
-        # Savollarni ma'lumotlar bazasiga saqlash
-        for question in questions:
-            Zip.objects.create(
-                text=question["text"],
-                options=question["options"],
-                true_answer=question["true_answer"],
-                category=category,
-                subject=subject,
-            )
+    # Savollar va rasmlarni saqlash
+        question_count = extract_questions_with_images_and_save(word_file, category, subject)
 
         return Response({
-            "message": f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!",
-            "category": category,
-            "subject": subject,
-            "data": questions
+            "message": f"{question_count} ta savol muvaffaqiyatli qayta ishlangan va saqlandi!"
         }, status=201)
+
+
 
 
 

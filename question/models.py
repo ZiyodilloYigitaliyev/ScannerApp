@@ -33,3 +33,10 @@ class Zip(models.Model):
     def __str__(self):
         return self.text
 
+
+class QuestionImage(models.Model):
+    question = models.ForeignKey(Question, related_name='images', on_delete=models.CASCADE)  # Savol bilan bog'lanadi
+    image = models.ImageField(upload_to='question_images/')  # Rasmni saqlash uchun yo'l
+
+    def __str__(self):
+        return f"Image for Question ID {self.question.id}"
