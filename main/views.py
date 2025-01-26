@@ -7,9 +7,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
 from django.db import transaction
-from .serializers import ZipFileSerializer, ProcessedTestSerializer
+from .serializers import ProcessedTestSerializer
 from .models import ProcessedTest, ProcessedTestResult
-import shutil
 from rest_framework.permissions import AllowAny
 import logging
 from question.models import Zip
