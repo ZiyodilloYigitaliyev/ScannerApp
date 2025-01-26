@@ -46,7 +46,7 @@ class ProcessImageView(APIView):
             with transaction.atomic():
                 processed_test = ProcessedTest.objects.create(
                     file=s3_url,
-                    bubbles=bubbles,
+                    student_id=student_id,
                     phone_number=phone_number
                 )
 
