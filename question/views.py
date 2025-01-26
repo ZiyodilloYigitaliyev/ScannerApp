@@ -8,8 +8,7 @@ import random
 from django.db import transaction
 import re
 from django.conf import settings
-from bs4 import BeautifulSoup
-import zipfile
+#from bs4 import BeautifulSoup
 from django.utils.dateparse import parse_datetime
 from datetime import *
 from django.utils.timezone import make_aware
@@ -22,93 +21,44 @@ import uuid
 from tempfile import NamedTemporaryFile
 import os
 from concurrent.futures import ThreadPoolExecutor
+from docx import Document
+import re
 logger = logging.getLogger(__name__)
 
 
 
-class HTMLFromZipView(APIView):
+class WordFileProcessorView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
-        questions = Zip.objects.all()
-        result = []
-
-        for question in questions:
-            question_data = {
-                "text": question.text,
-                "options": question.options,
-                "true_answer": question.true_answer,
-                "category": question.category,
-                "subject": question.subject
-            }
-
-            soup = BeautifulSoup(question.text, 'html.parser')
-            for img_tag in soup.find_all('img'):
-                img_src = img_tag.get('src')
-                if img_src and img_src.startswith('images/'):
-                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
-
-            question_data["text"] = str(soup)
-            result.append(question_data)
-
-        return Response(result, status=200)
-
-    def clean_img_tag(self, img_tag, new_src):
-        img_tag.attrs = {'src': new_src}
-    
-    def process_html_task(self, html_file, images, category, subject):
-        soup = BeautifulSoup(html_file, 'html.parser')
+    def extract_questions_from_docx(self, docx_file):
+        document = Document(docx_file)
         questions = []
         current_question = None
-
-        image_urls = {}
-        for image_name, image_data in images.items():
-            try:
-                uploaded_url = self.upload_image_to_s3(image_name, image_data)
-                image_urls[image_name] = uploaded_url
-            except Exception as e:
-                print(f"Error uploading {image_name}: {e}")
-
-        # <img> teglarini tozalash va yangilash
-        for img_tag in soup.find_all('img'):
-            img_src = img_tag.get('src')
-            if img_src and img_src in image_urls:
-                self.clean_img_tag(img_tag, image_urls[img_src])
-            else:
-                img_tag.decompose()  # <img> tegi bucketga yuklanmagan bo'lsa, o'chiramiz
-
-        # "KEY" bo‘limini topish va true_answerlarni ajratib olish
         key_answers = []
-        for p_tag in soup.find_all('p'):
-            if "KEY" in p_tag.get_text(strip=True).upper():
-                key_text = p_tag.get_text(strip=True)
-                matches = re.findall(r'(\d+)-([A-D])', key_text)
-                key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
-                break
-
-        # Savollarni ajratib olish
         question_counter = 0
-        for p_tag in soup.find_all('p'):
-            text = p_tag.get_text(strip=True)
-            if not text:
-                continue
+
+        for paragraph in document.paragraphs:
+            text = paragraph.text.strip()
 
             # Yangi savolni boshlash
-            if text[0].isdigit() and '.' in text:
+            if text and text[0].isdigit() and '.' in text:
                 if current_question:
                     questions.append(current_question)
                 question_counter += 1
                 current_question = {
-                    "text": str(p_tag),
+                    "text": text,
                     "options": "",
                     "true_answer": None,
-                    "category": category,
-                    "subject": subject
                 }
 
             # Variantlarni qo‘shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)  # Variantlarni tozalash
+                current_question["options"] += text + '\n'
+
+            # Javoblarni topish ("KEY" qismi bo'lsa)
+            elif "KEY" in text.upper():
+                matches = re.findall(r'(\d+)-([A-D])', text)
+                key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
 
         if current_question:
             questions.append(current_question)
@@ -118,48 +68,43 @@ class HTMLFromZipView(APIView):
             if i < len(key_answers):
                 question["true_answer"] = key_answers[i]
 
-        # Ma'lumotlarni saqlash
-        for question in questions:
-            Zip.objects.create(
-                text=question["text"],
-                options=question["options"],
-                true_answer=question["true_answer"],
-                category=question["category"],
-                subject=question["subject"]
-            )
-
-        return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
+        return questions
 
     def post(self, request, *args, **kwargs):
-        zip_file = request.FILES.get('file')
-        if not zip_file:
-            return Response({"error": "ZIP fayl topilmadi"}, status=400)
-
+        """
+        POST metodi Word fayldan savollarni o'qib, kategoriya va fan bilan birga ma'lumotlar bazasiga saqlaydi.
+        """
+        word_file = request.FILES.get('file')
         category = request.data.get('category')
         subject = request.data.get('subject')
 
+        # Tekshirish
+        if not word_file:
+            return Response({"error": "Word fayl topilmadi"}, status=400)
+
         if not category or not subject:
-            return Response(
-                {"error": "Category va Subject majburiy maydonlardir."},
-                status=400
+            return Response({"error": "Category va Subject maydonlari majburiy."}, status=400)
+
+        # Fayldan savollarni ajratib olish
+        questions = self.extract_questions_from_docx(word_file)
+
+        # Savollarni ma'lumotlar bazasiga saqlash
+        for question in questions:
+            Question.objects.create(
+                text=question["text"],
+                options=question["options"],
+                true_answer=question["true_answer"],
+                category=category,
+                subject=subject,
             )
 
-        with zipfile.ZipFile(zip_file, 'r') as z:
-            html_file = None
-            images = {}
+        return Response({
+            "message": f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!",
+            "category": category,
+            "subject": subject,
+            "data": questions
+        }, status=201)
 
-            for file_name in z.namelist():
-                if file_name.endswith('.html'):
-                    html_file = z.read(file_name).decode('utf-8')
-                elif file_name.startswith('images/'):
-                    images[file_name] = z.read(file_name)
-
-            if not html_file:
-                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
-
-            questions = self.process_html_task(html_file, images, category, subject)
-
-        return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
 
 
 
