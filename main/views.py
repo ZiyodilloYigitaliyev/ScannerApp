@@ -11,7 +11,6 @@ from .serializers import ProcessedTestSerializer
 from .models import ProcessedTest, ProcessedTestResult
 from rest_framework.permissions import AllowAny
 import logging
-from question.models import Zip
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -23,29 +22,23 @@ PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')  # 
 
 class ProcessImageView(APIView):
     permission_classes = [AllowAny]
-    file = FileField(required=True)  # Fayl maydoni
-    bubbles = ListField(
-        child=ListField(
-            child=IntegerField(),  # Har bir koordinata integer bo'lishi kerak
-            min_length=2,  # Har bir koordinata [x, y] shaklida bo'lishi kerak
-            max_length=2
-        ),
-        required=True
-    )
+
     def post(self, request, *args, **kwargs):
         try:
-            # Fayl va bubbles ma'lumotlarini tekshirish
+            # Ma'lumotlarni validatsiya qilish
             serializer = ProcessedTestSerializer(data=request.data)
             if not serializer.is_valid():
-                return Response({"error": "Invalid data", "details": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"error": "Invalid data", "details": serializer.errors},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             file = serializer.validated_data.get('file')
-            bubbles = serializer.validated_data.get('bubbles')
+            bubbles = serializer.validated_data.get('bubbles')  # JSONField orqali olinadigan ma'lumot
 
-            # Faylni serverga vaqtinchalik saqlash
+            # Faylni vaqtinchalik saqlash
             image_path = os.path.join(settings.MEDIA_ROOT, file.name)
             os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
-
             with open(image_path, 'wb') as f:
                 for chunk in file.chunks():
                     f.write(chunk)
@@ -58,52 +51,18 @@ class ProcessImageView(APIView):
 
             # Savollarning javoblarini tekshirish
             coordinates = load_coordinates_from_json(COORDINATES_PATH)
-            marked_answers = check_marked_circle(image_path, coordinates)
 
-            # Savollarni DBdan olish
-            questions_db = Zip.objects.all()
-            questions_dict = {q.text: q for q in questions_db}
-
-            total_score = 0
-
-            # Transaction doirasida saqlash
-            with transaction.atomic():
-                for question_text, student_answer in marked_answers.items():
-                    if question_text in questions_dict:
-                        question = questions_dict[question_text]
-
-                        # Savolga to'g'ri javob berilganligini tekshirish
-                        score = 0
-                        if question.category == "Majburiy Fan 1":
-                            score = 1.1
-                        elif question.category == "Fan 1":
-                            score = 2.1
-                        elif question.category == "Fan 2":
-                            score = 3.1
-
-                        is_correct = question.true_answer == student_answer
-                        if is_correct:
-                            total_score += score
-
-                        ProcessedTestResult.objects.create(
-                            student_id=student_id,
-                            question_id=question.id,
-                            student_answer=student_answer,
-                            is_correct=is_correct,
-                            score=score if is_correct else 0
-                        )
-
-            # Faylni S3 ga yuklash
+            # Faylni DBga saqlash yoki S3 ga yuklash
             unique_s3_key = ensure_unique_s3_key(f"images/answers/{file.name}")
             image_url = upload_to_s3(image_path, unique_s3_key)
 
             # Natijani saqlash
-            processed_test = ProcessedTest.objects.create(
-                file=image_url,
-                bubbles=marked_answers,
-                total_score=total_score,
-                phone_number=phone_number
-            )
+            with transaction.atomic():
+                processed_test = ProcessedTest.objects.create(
+                    file=image_url,
+                    bubbles=bubbles,
+                    phone_number=phone_number
+                )
 
             # Faylni o'chirish
             if os.path.exists(image_path):
@@ -114,13 +73,15 @@ class ProcessImageView(APIView):
                 "message": "Fayl muvaffaqiyatli yuklandi va qayta ishladi.",
                 "file_url": image_url,
                 "student_id": student_id,
-                "phone_number": phone_number,
-                "total_score": total_score
+                "phone_number": phone_number
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             logger.error(f"Xatolik yuz berdi: {str(e)}")
-            return Response({"error": f"Serverda xatolik yuz berdi: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": f"Serverda xatolik yuz berdi: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 def upload_to_s3(file_path, s3_key):
     s3 = boto3.client(
