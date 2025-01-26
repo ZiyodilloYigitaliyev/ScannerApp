@@ -23,12 +23,17 @@ class ProcessImageView(APIView):
         try:
             # Ma'lumotlarni validatsiya qilish
             serializer = ProcessedTestSerializer(data=request.data)
+            if not request.data:
+                return Response(
+                    {"error": "Bo'sh JSON Yuborildi"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            serializer = ProcessedTestSerializer(data=request.data)
             if not serializer.is_valid():
                 return Response(
                     {"error": "Invalid data", "details": serializer.errors},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-
             # JSON'dagi s3url va bubbles ma'lumotlarini olish
             s3_url = serializer.validated_data.get('file_url')
             bubbles = serializer.validated_data.get('bubbles')  # JSONField orqali olinadigan ma'lumot
