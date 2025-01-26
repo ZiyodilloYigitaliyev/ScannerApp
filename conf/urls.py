@@ -10,5 +10,6 @@ urlpatterns = [
     path("upload/", ProcessImageView.as_view()),
     path("api/questions", GenerateRandomQuestionsView.as_view()),
     path('admin/', admin.site.urls),
+    path('bot/', include('Bot.urls')),
     
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

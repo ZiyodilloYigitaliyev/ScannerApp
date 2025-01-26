@@ -114,27 +114,27 @@ AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = "public-read"
 
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-url = urlparse(DATABASE_URL)
+# DATABASE_URL = os.getenv("DATABASE_URL")
+#
+# url = urlparse(DATABASE_URL)
+#
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': url.path[1:],  # dbname
+#         'USER': url.username,  # user
+#         'PASSWORD': url.password,  # password
+#         'HOST': url.hostname,  # host
+#         'PORT': url.port,
+#     }
+# }
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': url.path[1:],  # dbname
-        'USER': url.username,  # user
-        'PASSWORD': url.password,  # password
-        'HOST': url.hostname,  # host
-        'PORT': url.port,
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
 
 
 

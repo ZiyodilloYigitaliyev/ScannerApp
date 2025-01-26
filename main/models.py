@@ -19,3 +19,11 @@ class ProcessedTestResult(models.Model):
     is_correct = models.BooleanField(default=False)
     processed_at = models.DateTimeField(auto_now_add=True)
     score = models.FloatField(default=0)
+# === Model ===
+class ProcessedData(models.Model):
+    x_coord = models.IntegerField()
+    y_coord = models.IntegerField()
+    data_type = models.CharField(max_length=50)
+
+    def __str__(self):
+        return f"({self.x_coord}, {self.y_coord}) - {self.data_type}"

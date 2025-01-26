@@ -1,24 +1,13 @@
-import os
 import json
+import os
+from django.http import JsonResponse
 from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from django.db import transaction
-from .serializers import ProcessedTestSerializer
-from .models import ProcessedTest, ProcessedTestResult
+from django.conf import settings
+from .models import ProcessedData  # Modelga mos nomni ishlating
 from rest_framework.permissions import AllowAny
-import logging
-
-logger = logging.getLogger(__name__)
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.json')
-ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
-PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')  # Telefon raqami koordinatalari
 
 class ProcessImageView(APIView):
     permission_classes = [AllowAny]
-
     def post(self, request, *args, **kwargs):
         try:
             # Ma'lumotlarni validatsiya qilish
