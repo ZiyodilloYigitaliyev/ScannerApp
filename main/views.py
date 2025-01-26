@@ -153,12 +153,18 @@ def load_coordinates_from_json(json_path):
 def check_marked_circle(image_path, coordinates, threshold=200):
     marked_answers = {}
 
+    # Koordinatalarni tekshirish
     for question, options in coordinates.items():
         for option, coord in options.items():
-            x, y = map(int, coord)  # Ehtimoliy muammo shu yerda
-            marked_answers[question] = option
+            # Har bir koordinata [x, y] shaklida bo'lishi kerak
+            if isinstance(coord, (list, tuple)) and len(coord) == 2:
+                x, y = map(int, coord)
+                marked_answers[question] = option
+            else:
+                logger.error(f"Invalid coordinate format for {question}-{option}: {coord}")
 
     return marked_answers
+
 
 
 
@@ -167,18 +173,25 @@ def extract_id(image_path, id_coordinates, threshold=200):
 
     for digit, positions in id_coordinates.items():
         for number, coord in positions.items():
-            x, y = map(int, coord)
-            id_result[digit] = number
+            if isinstance(coord, (list, tuple)) and len(coord) == 2:
+                x, y = map(int, coord)
+                id_result[digit] = number
+            else:
+                logger.error(f"Invalid coordinate format for {digit}-{number}: {coord}")
 
     return ''.join([id_result.get(f'n{i}', '?') for i in range(1, 5)])
+
 
 
 def extract_phone_number(image_path, phone_number_coordinates, threshold=200):
     phone_number = {}
 
+    # phone_number_coordinates obyektidagi har bir raqam uchun koordinatalarni tekshirish
     for digit, positions in phone_number_coordinates.items():
         for number, coord in positions.items():
+            # Koordinatalarni x, y ga o'zgartirish
             x, y = map(int, coord)
             phone_number[digit] = number
 
-    return ''.join([phone_number.get(f'n{i}', '?') for i in range(1, 5)])
+            # Natijada telefon raqami qaytariladi
+        return ''.join([phone_number.get(f'n{i}', '?') for i in range(1, 5)])
