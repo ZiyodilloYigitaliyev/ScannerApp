@@ -1,6 +1,7 @@
 import os
 import json
 import boto3
+from rest_framework.fields import FileField, ListField, IntegerField
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -22,7 +23,15 @@ PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')  # 
 
 class ProcessImageView(APIView):
     permission_classes = [AllowAny]
-
+    file = FileField(required=True)  # Fayl maydoni
+    bubbles = ListField(
+        child=ListField(
+            child=IntegerField(),  # Har bir koordinata integer bo'lishi kerak
+            min_length=2,  # Har bir koordinata [x, y] shaklida bo'lishi kerak
+            max_length=2
+        ),
+        required=True
+    )
     def post(self, request, *args, **kwargs):
         try:
             # Fayl va bubbles ma'lumotlarini tekshirish
