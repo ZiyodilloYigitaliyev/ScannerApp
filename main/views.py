@@ -1,17 +1,13 @@
 import os
 import json
-import boto3
-from rest_framework.fields import FileField, ListField, IntegerField
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.conf import settings
 from django.db import transaction
 from .serializers import ProcessedTestSerializer
 from .models import ProcessedTest, ProcessedTestResult
 from rest_framework.permissions import AllowAny
 import logging
-import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -33,45 +29,31 @@ class ProcessImageView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            file = serializer.validated_data.get('file')
+            # JSON'dagi s3url va bubbles ma'lumotlarini olish
+            s3_url = serializer.validated_data.get('s3url')
             bubbles = serializer.validated_data.get('bubbles')  # JSONField orqali olinadigan ma'lumot
-
-            # Faylni vaqtinchalik saqlash
-            image_path = os.path.join(settings.MEDIA_ROOT, file.name)
-            os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
-            with open(image_path, 'wb') as f:
-                for chunk in file.chunks():
-                    f.write(chunk)
 
             # Telefon raqami va IDni aniqlash
             id_coordinates = load_coordinates_from_json(ID_PATH)
             phone_number_coordinates = load_coordinates_from_json(PHONE_NUMBER_PATH)
-            student_id = extract_id(image_path, id_coordinates)
-            phone_number = extract_phone_number(image_path, phone_number_coordinates)
+            student_id = extract_id(s3_url, id_coordinates)
+            phone_number = extract_phone_number(s3_url, phone_number_coordinates)
 
             # Savollarning javoblarini tekshirish
             coordinates = load_coordinates_from_json(COORDINATES_PATH)
 
-            # Faylni DBga saqlash yoki S3 ga yuklash
-            unique_s3_key = ensure_unique_s3_key(f"images/answers/{file.name}")
-            image_url = upload_to_s3(image_path, unique_s3_key)
-
             # Natijani saqlash
             with transaction.atomic():
                 processed_test = ProcessedTest.objects.create(
-                    file=image_url,
+                    file=s3_url,
                     bubbles=bubbles,
                     phone_number=phone_number
                 )
 
-            # Faylni o'chirish
-            if os.path.exists(image_path):
-                os.remove(image_path)
-
             # Javob qaytarish
             return Response({
-                "message": "Fayl muvaffaqiyatli yuklandi va qayta ishladi.",
-                "file_url": image_url,
+                "message": "Ma'lumotlar muvaffaqiyatli saqlandi.",
+                "file_url": s3_url,
                 "student_id": student_id,
                 "phone_number": phone_number
             }, status=status.HTTP_201_CREATED)
@@ -82,37 +64,6 @@ class ProcessImageView(APIView):
                 {"error": f"Serverda xatolik yuz berdi: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-def upload_to_s3(file_path, s3_key):
-    s3 = boto3.client(
-        's3',
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        region_name=settings.AWS_REGION_NAME
-    )
-    with open(file_path, 'rb') as f:
-        s3.upload_fileobj(f, settings.AWS_STORAGE_BUCKET_NAME, s3_key)
-
-    file_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_REGION_NAME}.amazonaws.com/{s3_key}"
-    return file_url
-
-
-def ensure_unique_s3_key(s3_key):
-    s3 = boto3.client(
-        's3',
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        region_name=settings.AWS_REGION_NAME
-    )
-    bucket_name = settings.AWS_STORAGE_BUCKET_NAME
-
-    try:
-        s3.head_object(Bucket=bucket_name, Key=s3_key)
-        base, ext = os.path.splitext(s3_key)
-        unique_key = f"{base}_{uuid.uuid4().hex[:8]}{ext}"
-        return ensure_unique_s3_key(unique_key)
-    except s3.exceptions.ClientError:
-        return s3_key
 
 
 def load_coordinates_from_json(json_path):

@@ -1,4 +1,4 @@
-from django.forms import FileField, JSONField
+from django.forms import FileField, JSONField, CharField
 from rest_framework import serializers
 from rest_framework.serializers import Serializer
 
@@ -10,8 +10,9 @@ class ProcessedTestResultSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class ProcessedTestSerializer(Serializer):
-    file = FileField(required=True)  # Fayl maydoni
-    bubbles = JSONField(required=True)  # JSON formatidagi ma'lumotlar uchun may
+    s3url = CharField(required=True)  # S3 URL manzili uchun maydon
+    bubbles = JSONField(required=True)  # JSON formatidagi ma'lumotlar uchun maydon
+
 # class ProcessedTestSerializer(serializers.ModelSerializer):
 #     results = ProcessedTestResultSerializer(many=True, read_only=True)
 #
