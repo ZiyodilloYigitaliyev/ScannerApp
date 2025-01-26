@@ -43,7 +43,7 @@ class HTMLFromZipView(APIView):
             }
 
             soup = BeautifulSoup(question.text, 'html.parser')
-            
+
             # <p> ichidagi barcha <img> teglari uchun ma'lumotlarni olish
             img_info = []
             for p_tag in soup.find_all('p'):
@@ -164,6 +164,7 @@ class HTMLFromZipView(APIView):
             questions = self.process_html_task(html_file, images, category, subject)
 
         return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
+
 
 
     def upload_image_to_s3(self, image_name, image_data):
