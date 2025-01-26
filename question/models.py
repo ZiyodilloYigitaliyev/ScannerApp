@@ -14,7 +14,7 @@ class Question(models.Model):
     subject = models.CharField(max_length=255, blank=True)
     text = models.TextField()
     options = models.TextField() 
-    true_answer = models.CharField(max_length=1, default="")
+    true_answer = models.CharField(max_length=1, null=True, blank=True)
     order = models.IntegerField(default=0)
     
     def __int__(self):
