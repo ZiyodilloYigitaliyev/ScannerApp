@@ -9,6 +9,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
 from django.conf import settings
+import xml.etree.cElementTree as ET 
 
 def upload_image_to_s3(self, image_name, image_data):
             s3_client = boto3.client(
@@ -48,31 +49,49 @@ def check_file_exists_in_s3(self, s3_client, bucket_name, s3_key):
             else:
                 raise
 
+def parse_svg(svg_content):
+    """SVG faylni o'qib, uning tarkibiy qismlarini qaytaradi."""
+    try:
+        root = ET.fromstring(svg_content)
+        elements = []
+        for elem in root.iter():
+            elements.append(elem.tag)
+        return elements
+    except ET.ParseError as e:
+        return {"error": f"SVG faylni o'qishda xato: {e}"}
+
+# Matematik formulani PNG rasmga aylantirish
 def render_formula_to_image(formula):
     """Matematik formulani rasmga aylantiradi."""
     img = Image.new("RGB", (400, 100), color="white")
     draw = ImageDraw.Draw(img)
-    font = ImageFont.load_default()  # Tayyor shriftlardan foydalaniladi
+    font = ImageFont.load_default()
     draw.text((10, 10), formula, fill="black", font=font)
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
 
-def extract_questions_with_images_and_save(docx_file, category, subject):
+def extract_questions_from_svg(svg_file, category, subject):
     """
-    Word fayldan savollar, rasmlar va matematik formulalarni o'qib, ma'lumotlar bazasiga saqlaydi.
+    SVG fayldan savollar va elementlarni o'qib, ma'lumotlar bazasiga saqlaydi.
     """
-    document = Document(docx_file)
+    svg_content = svg_file.read().decode("utf-8")
+    svg_elements = parse_svg(svg_content)
+
+    # Savollarni tahlil qilish va saqlash uchun boshlang'ich sozlamalar
     questions = []
-    current_question = None
+    current_question = {
+        "text": "",
+        "options": "",
+        "true_answer": None,
+        "images": []
+    }
 
-    for i, paragraph in enumerate(document.paragraphs):
-        text = paragraph.text.strip()
-
-        # Yangi savolni boshlash
-        if text and text[0].isdigit() and '.' in text:
-            if current_question:
+    for elem in svg_elements:
+        # Bu yerda SVG elementlari asosida savollarni tahlil qilishingiz mumkin
+        if "question" in elem:
+            if current_question["text"]:
                 question_obj = Zip.objects.create(
                     text=current_question["text"],
                     options=current_question["options"],
@@ -86,54 +105,23 @@ def extract_questions_with_images_and_save(docx_file, category, subject):
                     image_file = ContentFile(image_data["content"], name=image_data["filename"])
                     QuestionImage.objects.create(question=question_obj, image=image_file)
 
-            # Yangi savol uchun boshlang'ich ma'lumotlar
             current_question = {
-                "text": text,
+                "text": elem,  # Savol matni
                 "options": "",
                 "true_answer": None,
-                "images": []  # Rasmlar ro'yxati
+                "images": []
             }
-
-        # Variantlarni qo'shish
-        elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-            current_question["options"] += text + '\n'
-
-        # Rasmlarni o'qish yoki matematik formulani aniqlash
-        for run in paragraph.runs:
-            if run.element.xpath(".//w:drawing"):
-                image_parts = run.element.xpath(".//w:blip/@r:embed")
-
-                if image_parts:
-                    image_part = image_parts[0]
-                    if image_part is not None:
-                        image = document.part.related_parts.get(image_part)
-                        if image is not None:
-                            current_question["images"].append({
-                                "filename": f"image_{uuid.uuid4().hex}.png",
-                                "content": image.blob
-                            })
-
-            # Matematik formulalarni aniqlash va rasmga aylantirish
-            elif "\\(" in text and "\\)" in text:
-                formula_start = text.find("\\(") + 2
-                formula_end = text.find("\\)")
-                formula = text[formula_start:formula_end]
-
-                # Formulani rasmga aylantirish
-                formula_image = render_formula_to_image(formula)
-                file_name = f"formula_{uuid.uuid4().hex}.png"
-
-                # S3 ga saqlash
-                s3_url = upload_image_to_s3(formula_image, file_name)
-
-                # Formulaning o'rniga S3 URLni qo'shish
-                text = text.replace(f"\\({formula}\\)", s3_url)
-
-        # Paragraf matnini yangilash
-        paragraph.text = text
+        elif "option" in elem:
+            current_question["options"] += elem + "\n"
+        elif "image" in elem:
+            # SVG ichidagi rasmlarni qayta ishlash
+            current_question["images"].append({
+                "filename": f"image_{uuid.uuid4().hex}.svg",
+                "content": svg_content
+            })
 
     # Oxirgi savolni saqlash
-    if current_question:
+    if current_question["text"]:
         question_obj = Zip.objects.create(
             text=current_question["text"],
             options=current_question["options"],

@@ -11,7 +11,7 @@ from datetime import *
 from django.utils.timezone import make_aware
 from rest_framework.response import Response
 import logging
-from .utils import extract_questions_with_images_and_save
+from .utils import extract_questions_from_svg
 
 logger = logging.getLogger(__name__)
 
@@ -21,23 +21,22 @@ class WordFileProcessorView(APIView):
     permission_classes = [AllowAny]
 
 
-    def post(self, request, *args, **kwargs):
-        word_file = request.FILES.get('file')
-        category = request.data.get('category')
-        subject = request.data.get('subject')
+def post(self, request, *args, **kwargs):
+    svg_file = request.FILES.get('file')
+    category = request.data.get('category')
+    subject = request.data.get('subject')
 
-        if not word_file:
-            return Response({"error": "Word fayl topilmadi"}, status=400)
+    if not svg_file:
+        return Response({"error": "SVG fayl topilmadi"}, status=400)
 
-        if not category or not subject:
-            return Response({"error": "Category va Subject majburiy maydonlardir."}, status=400)
+    if not category or not subject:
+        return Response({"error": "Category va Subject majburiy maydonlardir."}, status=400)
 
-    # Savollar va rasmlarni saqlash
-        question_count = extract_questions_with_images_and_save(word_file, category, subject)
+    question_count = extract_questions_from_svg(svg_file, category, subject)
 
-        return Response({
-            "message": f"{question_count} ta savol muvaffaqiyatli qayta ishlangan va saqlandi!"
-        }, status=201)
+    return Response({
+        "message": f"{question_count} ta savol muvaffaqiyatli qayta ishlangan va saqlandi!"
+    }, status=201)
 
 
 
