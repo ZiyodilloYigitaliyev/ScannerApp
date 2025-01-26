@@ -90,7 +90,7 @@ class WordFileProcessorView(APIView):
 
         # Savollarni ma'lumotlar bazasiga saqlash
         for question in questions:
-            Question.objects.create(
+            Zip.objects.create(
                 text=question["text"],
                 options=question["options"],
                 true_answer=question["true_answer"],
