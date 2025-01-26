@@ -13,7 +13,6 @@ import zipfile
 from django.utils.dateparse import parse_datetime
 from datetime import *
 from django.utils.timezone import make_aware
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 import logging
 import zipfile
@@ -26,8 +25,6 @@ from concurrent.futures import ThreadPoolExecutor
 logger = logging.getLogger(__name__)
 
 
-from bs4 import BeautifulSoup
-import re
 
 class HTMLFromZipView(APIView):
     permission_classes = [AllowAny]

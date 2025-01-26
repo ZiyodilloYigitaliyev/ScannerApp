@@ -26,6 +26,7 @@ class Zip(models.Model):
     options = models.TextField()
     true_answer = models.CharField(max_length=255, null=True, blank=True)
     category = models.CharField(max_length=255, null=True, blank=True)
+    images = models.CharField(max_length=255, null=True, blank=True)
     subject = models.CharField(max_length=255, null=True, blank=True)
     date = models.DateField(auto_now_add=True)
 
