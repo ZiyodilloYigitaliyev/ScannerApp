@@ -43,19 +43,23 @@ class HTMLFromZipView(APIView):
             }
 
             soup = BeautifulSoup(question.text, 'html.parser')
-            for img_tag in soup.find_all('img'):
-                img_src = img_tag.get('src')
-                if img_src and img_src.startswith('images/'):
-                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
+            
+            # <p> ichidagi barcha <img> teglari uchun ma'lumotlarni olish
+            img_info = []
+            for p_tag in soup.find_all('p'):
+                for img_tag in p_tag.find_all('img'):
+                    img_src = img_tag.get('src')
+                    if img_src:
+                        img_info.append({"p_content": p_tag.text.strip(), "img_src": img_src})
 
-            question_data["text"] = str(soup)
+            question_data["images"] = img_info
             result.append(question_data)
 
         return Response(result, status=200)
 
     def clean_img_tag(self, img_tag, new_src):
         img_tag.attrs = {'src': new_src}
-    
+
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
         questions = []
@@ -160,6 +164,7 @@ class HTMLFromZipView(APIView):
             questions = self.process_html_task(html_file, images, category, subject)
 
         return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
+
 
     def upload_image_to_s3(self, image_name, image_data):
             s3_client = boto3.client(
