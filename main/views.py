@@ -36,11 +36,13 @@ class ProcessImageView(APIView):
             # Telefon raqami va IDni aniqlash
             id_coordinates = load_coordinates_from_json(ID_PATH)
             phone_number_coordinates = load_coordinates_from_json(PHONE_NUMBER_PATH)
-            student_id = extract_id(s3_url, id_coordinates)
-            phone_number = extract_phone_number(s3_url, phone_number_coordinates)
+
+            student_id = extract_from_coordinates(bubbles, id_coordinates)
+            phone_number = extract_from_coordinates(bubbles, phone_number_coordinates)
 
             # Savollarning javoblarini tekshirish
-            coordinates = load_coordinates_from_json(COORDINATES_PATH)
+            question_coordinates = load_coordinates_from_json(COORDINATES_PATH)
+            marked_answers = extract_from_coordinates(bubbles, question_coordinates)
 
             # Natijani saqlash
             with transaction.atomic():
@@ -50,12 +52,21 @@ class ProcessImageView(APIView):
                     phone_number=phone_number
                 )
 
+                # Natijalarni saqlash
+                for question, answer in marked_answers.items():
+                    ProcessedTestResult.objects.create(
+                        test=processed_test,
+                        question=question,
+                        answer=answer
+                    )
+
             # Javob qaytarish
             return Response({
                 "message": "Ma'lumotlar muvaffaqiyatli saqlandi.",
                 "file_url": s3_url,
                 "student_id": student_id,
-                "phone_number": phone_number
+                "phone_number": phone_number,
+                "answers": marked_answers
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
@@ -72,46 +83,17 @@ def load_coordinates_from_json(json_path):
         return json.load(file)
 
 
-def extract_id(image_path, id_coordinates, threshold=200):
-    """IDni rasmdan olish"""
-    id_result = {}
+def extract_from_coordinates(bubbles, coordinates):
+    """
+    JSON'dagi bubbles ma'lumotlari va koordinatalar bo'yicha mos ma'lumotlarni ajratib olish.
+    :param bubbles: JSON'dan kelgan bubbles
+    :param coordinates: Koordinatalar (JSON'dan yuklangan)
+    """
+    extracted_data = {}
 
-    for digit, positions in id_coordinates.items():
-        for number, coord in positions.items():
-            if isinstance(coord, (list, tuple)) and len(coord) == 2:
-                x, y = map(int, coord)
-                id_result[digit] = number
-            else:
-                logger.error(f"Invalid coordinate format for {digit}-{number}: {coord}")
+    for key, coord_list in coordinates.items():
+        for index, coord in enumerate(coord_list):
+            if coord in bubbles:  # Agar koordinata bubbles ichida bo'lsa
+                extracted_data[key] = index + 1  # Variant raqamini saqlash
 
-    return ''.join([id_result.get(f'n{i}', '?') for i in range(1, 5)])
-
-
-def extract_phone_number(image_path, phone_number_coordinates, threshold=200):
-    """Telefon raqamini rasmdan olish"""
-    phone_number = {}
-
-    # phone_number_coordinates obyektidagi har bir raqam uchun koordinatalarni tekshirish
-    for digit, positions in phone_number_coordinates.items():
-        for number, coord in positions.items():
-            # Koordinatalarni x, y ga o'zgartirish
-            if isinstance(coord, (list, tuple)) and len(coord) == 2:
-                x, y = map(int, coord)
-                phone_number[digit] = number
-
-    return ''.join([phone_number.get(f'n{i}', '?') for i in range(1, 5)])
-
-
-def check_marked_circle(image_path, coordinates, threshold=200):
-    """Koordinatalarni tekshirish"""
-    marked_answers = {}
-
-    for question, options in coordinates.items():
-        for option, coord in options.items():
-            if isinstance(coord, (list, tuple)) and len(coord) == 2:
-                x, y = map(int, coord)
-                marked_answers[question] = option
-            else:
-                logger.error(f"Invalid coordinate format for {question}-{option}: {coord}")
-
-    return marked_answers
+    return extracted_data
