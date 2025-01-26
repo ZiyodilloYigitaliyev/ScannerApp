@@ -44,7 +44,11 @@ def extract_questions_with_images_and_save(docx_file, category, subject):
         # Rasmlarni o'qish
             for run in paragraph.runs:
                 if run.element.xpath(".//w:drawing"):
-                    image_part = run.element.xpath(".//w:blip/@r:embed")[0]
+                    image_part = run.element.xpath(".//w:blip/@r:embed")
+                    if image_part:
+                        image_part = image_part[0]
+                    else:
+                        image_part = None
                     image = document.part.related_parts[image_part]
                     current_question["images"].append({
                         "filename": f"image_{i}.png",
