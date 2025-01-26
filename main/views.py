@@ -24,18 +24,25 @@ class ProcessImageView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        serializer = ProcessedTestSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        image_files = serializer.validated_data['files']
-        if len(image_files) < 2:
-            return Response({"error": "Kamida 2 ta fayl yuklashingiz kerak!"}, status=status.HTTP_400_BAD_REQUEST)
-
         try:
+            # Fayllarni va ma'lumotlarni tekshirish
+            serializer = ProcessedTestSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response({"error": "Invalid data", "details": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+            image_files = serializer.validated_data.get('files')
+            if not image_files or len(image_files) < 2:
+                return Response({"error": "At least 2 files are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Bubbles ma'lumotlarini olish va tekshirish
+            bubbles = request.data.get('bubbles', [])
+            if not bubbles:
+                return Response({"error": "No bubbles data provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Coordinates va telefon raqami koordinatalarini olish
             coordinates = load_coordinates_from_json(COORDINATES_PATH)
             id_coordinates = load_coordinates_from_json(ID_PATH)
-            phone_number_coordinates = load_coordinates_from_json(PHONE_NUMBER_PATH)  # Telefon raqami koordinatalarini yuklash
+            phone_number_coordinates = load_coordinates_from_json(PHONE_NUMBER_PATH)
 
             results = []
             total_score = 0
@@ -49,7 +56,7 @@ class ProcessImageView(APIView):
                         f.write(chunk)
 
                 student_id = extract_id(image_path, id_coordinates)
-                phone_number = extract_phone_number(image_path, phone_number_coordinates)  # Telefon raqamini chiqarish
+                phone_number = extract_phone_number(image_path, phone_number_coordinates)
                 marked_answers = check_marked_circle(image_path, coordinates)
 
                 questions_db = Zip.objects.all()
@@ -68,9 +75,9 @@ class ProcessImageView(APIView):
                             elif question.category == "Majburiy Fan 3":
                                 score = 1.1
                             elif question.category == "Fan 1":
-                                score = 3.1
-                            elif question.category == "Fan 2":
                                 score = 2.1
+                            elif question.category == "Fan 2":
+                                score = 3.1
 
                             is_correct = question.true_answer == student_answer
                             if is_correct:
@@ -91,12 +98,12 @@ class ProcessImageView(APIView):
                     file=image_url,
                     bubbles=marked_answers,
                     total_score=total_score,
-                    phone_number=phone_number  # Telefon raqamini saqlash
+                    phone_number=phone_number
                 )
                 results.append({
                     "file_url": image_url,
                     "student_id": student_id,
-                    "phone_number": phone_number,  # Telefon raqami bilan natijani qaytarish
+                    "phone_number": phone_number,
                     "total_score": total_score
                 })
 
@@ -110,8 +117,7 @@ class ProcessImageView(APIView):
 
         except Exception as e:
             logger.error(f"Xatolik yuz berdi: {str(e)}")
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response({"error": f"Serverda xatolik yuz berdi: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 def upload_to_s3(file_path, s3_key):
     s3 = boto3.client(
