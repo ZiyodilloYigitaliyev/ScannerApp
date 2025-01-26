@@ -1,7 +1,6 @@
 import os
 import json
 import boto3
-import numpy as np
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -12,8 +11,6 @@ from .models import ProcessedTest, ProcessedTestResult
 from rest_framework.permissions import AllowAny
 import logging
 from question.models import Zip
-from PIL import Image
-logger = logging.getLogger(__name__)
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -21,7 +18,7 @@ logger = logging.getLogger(__name__)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.json')
 ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
-
+PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/phone_number.json')  # Telefon raqami koordinatalari
 
 class ProcessImageView(APIView):
     permission_classes = [AllowAny]
@@ -31,34 +28,30 @@ class ProcessImageView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        image_files = serializer.validated_data['files']  # Bir nechta fayllarni olish
-        if len(image_files) < 2:  # Minimal 2 ta faylni tekshirish
+        image_files = serializer.validated_data['files']
+        if len(image_files) < 2:
             return Response({"error": "Kamida 2 ta fayl yuklashingiz kerak!"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # JSON koordinatalarni yuklash
             coordinates = load_coordinates_from_json(COORDINATES_PATH)
             id_coordinates = load_coordinates_from_json(ID_PATH)
+            phone_number_coordinates = load_coordinates_from_json(PHONE_NUMBER_PATH)  # Telefon raqami koordinatalarini yuklash
 
-            results = []  # Natijalarni yig‘ish uchun
+            results = []
             total_score = 0
 
             for image_file in image_files:
                 image_path = os.path.join(settings.MEDIA_ROOT, image_file.name)
                 os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
 
-                # Faylni vaqtinchalik saqlash
                 with open(image_path, 'wb') as f:
                     for chunk in image_file.chunks():
                         f.write(chunk)
 
-                # ID raqamni chiqarish
                 student_id = extract_id(image_path, id_coordinates)
-
-                # Belgilangan savollarni aniqlash
+                phone_number = extract_phone_number(image_path, phone_number_coordinates)  # Telefon raqamini chiqarish
                 marked_answers = check_marked_circle(image_path, coordinates)
 
-                # Savollardan ballar hisoblash
                 questions_db = Zip.objects.all()
                 questions_dict = {q.text: q for q in questions_db}
 
@@ -67,7 +60,6 @@ class ProcessImageView(APIView):
                         if question_text in questions_dict:
                             question = questions_dict[question_text]
 
-                            # Kategoriyaga ko‘ra ballarni hisoblash
                             score = 0
                             if question.category == "Majburiy Fan 1":
                                 score = 1.1
@@ -76,16 +68,14 @@ class ProcessImageView(APIView):
                             elif question.category == "Majburiy Fan 3":
                                 score = 1.1
                             elif question.category == "Fan 1":
-                                score = 2.1
-                            elif question.category == "Fan 2":
                                 score = 3.1
+                            elif question.category == "Fan 2":
+                                score = 2.1
 
-                            # Javobni to‘g‘riligi bo‘yicha hisoblash
                             is_correct = question.true_answer == student_answer
                             if is_correct:
                                 total_score += score
 
-                            # Natijani saqlash
                             ProcessedTestResult.objects.create(
                                 student_id=student_id,
                                 question_id=question.id,
@@ -94,23 +84,22 @@ class ProcessImageView(APIView):
                                 score=score if is_correct else 0
                             )
 
-                # Faylni S3 bucketga yuklash
                 unique_s3_key = ensure_unique_s3_key(f"images/answers/{image_file.name}")
                 image_url = upload_to_s3(image_path, unique_s3_key)
 
-                # ProcessedTest yozuvini yaratish
                 processed_test = ProcessedTest.objects.create(
                     file=image_url,
                     bubbles=marked_answers,
-                    total_score=total_score
+                    total_score=total_score,
+                    phone_number=phone_number  # Telefon raqamini saqlash
                 )
                 results.append({
                     "file_url": image_url,
                     "student_id": student_id,
+                    "phone_number": phone_number,  # Telefon raqami bilan natijani qaytarish
                     "total_score": total_score
                 })
 
-                # Vaqtinchalik faylni o'chirish
                 if os.path.exists(image_path):
                     os.remove(image_path)
 
@@ -125,7 +114,6 @@ class ProcessImageView(APIView):
 
 
 def upload_to_s3(file_path, s3_key):
-    """Faylni S3 bucketga yuklash."""
     s3 = boto3.client(
         's3',
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
@@ -140,9 +128,6 @@ def upload_to_s3(file_path, s3_key):
 
 
 def ensure_unique_s3_key(s3_key):
-    """
-    Fayl nomini tekshiradi. Agar nom mavjud bo'lsa, yangi nom yaratadi.
-    """
     s3 = boto3.client(
         's3',
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
@@ -153,7 +138,6 @@ def ensure_unique_s3_key(s3_key):
 
     try:
         s3.head_object(Bucket=bucket_name, Key=s3_key)
-        # Agar fayl mavjud bo'lsa, yangi nom yaratish
         base, ext = os.path.splitext(s3_key)
         unique_key = f"{base}_{uuid.uuid4().hex[:8]}{ext}"
         return ensure_unique_s3_key(unique_key)
@@ -167,36 +151,33 @@ def load_coordinates_from_json(json_path):
 
 
 def check_marked_circle(image_path, coordinates, threshold=200):
-    image = Image.open(image_path).convert("L")
-    image_array = np.array(image)
     marked_answers = {}
 
     for question, options in coordinates.items():
         for option, coord in options.items():
             x, y = map(int, coord)
-            radius = 5
-            roi = image_array[y - radius:y + radius, x - radius:x + radius]
-            mean_brightness = np.mean(roi)
-            if mean_brightness < threshold:
-                marked_answers[question] = option
-                break
+            marked_answers[question] = option
+
     return marked_answers
 
 
 def extract_id(image_path, id_coordinates, threshold=200):
-    image = Image.open(image_path).convert("L")
-    image_array = np.array(image)
     id_result = {}
 
     for digit, positions in id_coordinates.items():
         for number, coord in positions.items():
             x, y = map(int, coord)
-            radius = 5
-            roi = image_array[y - radius:y + radius, x - radius:x + radius]
-            mean_brightness = np.mean(roi)
-            if mean_brightness < threshold:
-                if digit not in id_result:
-                    id_result[digit] = number
-                break
+            id_result[digit] = number
 
     return ''.join([id_result.get(f'n{i}', '?') for i in range(1, 5)])
+
+
+def extract_phone_number(image_path, phone_number_coordinates, threshold=200):
+    phone_number = {}
+
+    for digit, positions in phone_number_coordinates.items():
+        for number, coord in positions.items():
+            x, y = map(int, coord)
+            phone_number[digit] = number
+
+    return ''.join([phone_number.get(f'n{i}', '?') for i in range(1, 5)])
