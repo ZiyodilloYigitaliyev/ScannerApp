@@ -14,6 +14,7 @@ import logging
 from question.models import Zip
 from PIL import Image
 logger = logging.getLogger(__name__)
+import uuid
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.json')
@@ -21,19 +22,10 @@ ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
 
 
 def load_coordinates_from_json(json_path):
-    """JSON fayldan koordinatalarni yuklaydi."""
     with open(json_path, 'r') as file:
         return json.load(file)
 
 def check_marked_circle(image_path, coordinates, threshold=200):
-    """
-    Suratdagi belgilangan doirani aniqlaydi.
-    
-    :param image_path: Suratingiz fayl yo'li.
-    :param coordinates: JSON orqali kelgan koordinatalar.
-    :param threshold: Yorqinlik chegarasi.
-    :return: Belgilangan javoblar lug'ati.
-    """
     image = Image.open(image_path).convert("L")  # Suratni grayscale'ga o'tkazadi
     image_array = np.array(image)  # Suratingizni numpy massivga aylantiradi
     marked_answers = {}
@@ -52,14 +44,6 @@ def check_marked_circle(image_path, coordinates, threshold=200):
     return marked_answers
 
 def extract_id(image_path, id_coordinates, threshold=200):
-    """
-    Suratdagi ID raqamlarini aniqlaydi.
-    
-    :param image_path: Suratingiz fayl yo'li.
-    :param id_coordinates: JSON orqali kelgan ID koordinatalari.
-    :param threshold: Yorqinlik chegarasi.
-    :return: Topilgan ID raqami.
-    """
     image = Image.open(image_path).convert("L")
     image_array = np.array(image)
     id_result = {}
@@ -81,12 +65,6 @@ def extract_id(image_path, id_coordinates, threshold=200):
     return ''.join([id_result.get(f'n{i}', '?') for i in range(1, 5)])
 
 def find_image_files(directory):
-    """
-    Berilgan papkadan barcha tasvirlarni topadi.
-    
-    :param directory: Papka yo'li.
-    :return: Tasvirlar ro'yxati.
-    """
     image_files = []
     for root, dirs, files in os.walk(directory):
         for file in files:
@@ -198,3 +176,23 @@ def upload_to_s3(file_path, s3_key):
     file_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_REGION_NAME}.amazonaws.com/{s3_key}"
     return file_url
 
+
+def ensure_unique_s3_key(s3_key):
+    s3 = boto3.client(
+        's3',
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_REGION_NAME
+    )
+    bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+
+    # Fayl nomining mavjudligini tekshirish
+    try:
+        s3.head_object(Bucket=bucket_name, Key=s3_key)
+        # Agar fayl mavjud bo'lsa, yangi nom yaratish
+        base, ext = os.path.splitext(s3_key)
+        unique_key = f"{base}_{uuid.uuid4().hex[:8]}{ext}"
+        return ensure_unique_s3_key(unique_key)  # Rekursiv tekshirish
+    except s3.exceptions.ClientError:
+        # Fayl mavjud emas
+        return s3_key
