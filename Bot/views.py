@@ -1,5 +1,4 @@
-from django.shortcuts import render
-
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -8,10 +7,7 @@ from .serializers import BotUserSerializer
 
 
 class CheckUserAPIView(APIView):
-    """
-    Foydalanuvchini tekshirish uchun API.
-    """
-
+    permission_classes = [AllowAny]
     def get(self, request):
         user_id = request.query_params.get('user_id')
         if not user_id:
@@ -26,9 +22,7 @@ class CheckUserAPIView(APIView):
 
 
 class RegisterUserAPIView(APIView):
-    """
-    Foydalanuvchini ro'yxatdan o'tkazish uchun API.
-    """
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = BotUserSerializer(data=request.data)
