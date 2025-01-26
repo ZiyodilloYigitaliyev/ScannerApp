@@ -75,7 +75,7 @@ class HTMLFromZipView(APIView):
                     "true_answer": None,
                     "category": category,
                     "subject": subject,
-                    "images": []  # To hold images for this question
+                    "images": None  # To hold images for this question
                 }
 
             # If the text starts with answer choices (A, B, C, D)
