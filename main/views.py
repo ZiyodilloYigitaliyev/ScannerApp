@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.json')
 ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
-PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/phone_number.json')  # Telefon raqami koordinatalari
+PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')  # Telefon raqami koordinatalari
 
 class ProcessImageView(APIView):
     permission_classes = [AllowAny]
