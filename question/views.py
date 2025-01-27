@@ -31,19 +31,20 @@ class PDFUploadView(APIView):
         result = []
 
         for question in questions:
-            pdf_path = question.text  # `text` maydonida PDF fayl manzili saqlangan deb hisoblaymiz
+            pdf_path = question.text
             if not os.path.exists(pdf_path):
-                continue  # Agar fayl mavjud bo'lmasa, uni o'tkazib yuboramiz
+                continue
 
-            pdf_content = self.extract_pdf_content(pdf_path)
+            extracted_urls = self.extract_images_from_pdf(pdf_path)
+            true_answers = self.extract_true_answers(pdf_path)  # To'g'ri javoblarni chiqarish
             result.append({
                 "category": question.category,
                 "subject": question.subject,
-                "pdf_content": pdf_content
+                "image_urls": extracted_urls,
+                "true_answers": true_answers
             })
 
         return Response(result, status=200)
-
 
     def extract_images_from_pdf(self, pdf_file):
         doc = fitz.open(pdf_file)
@@ -51,30 +52,57 @@ class PDFUploadView(APIView):
 
         for page_num in range(len(doc)):
             page = doc[page_num]
-            images = page.get_images(full=True)  # Sahifadagi barcha rasmlarni oladi
+            images = page.get_images(full=True)
 
-        for img_index, img in enumerate(images):
-            xref = img[0]  # Xref bu rasmning unikalligini aniqlovchi indeks
-            base_image = doc.extract_image(xref)  # Rasm ma'lumotlarini chiqarib oladi
-            image_data = base_image["image"]  # Asl rasm ma'lumotlari
+            for img_index, img in enumerate(images):
+                xref = img[0]
+                base_image = doc.extract_image(xref)
+                image_data = base_image["image"]
 
-            # Fayl nomini unikallash
-            unique_image_name = f"{uuid.uuid4()}.jpg"
+                unique_image_name = f"{uuid.uuid4()}.jpg"
 
-            try:
-                # Rasmlarni S3 ga yuklash
-                uploaded_url = self.upload_image_to_s3(unique_image_name, image_data)
-                image_urls.append(uploaded_url)
-            except Exception as e:
-                print(f"Error uploading image: {e}")
+                try:
+                    uploaded_url = self.upload_image_to_s3(unique_image_name, image_data)
+                    image_urls.append(uploaded_url)
+                except Exception as e:
+                    print(f"Error uploading image: {e}")
 
         return image_urls
 
+    def extract_true_answers(self, pdf_file):
+        """PDF fayl ichidan 'KEY' so'zidan keyingi to'g'ri javoblarni chiqaradi."""
+        doc = fitz.open(pdf_file)
+        true_answers = []
+
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            text = page.get_text("text")  # Sahifa matnini chiqarib olish
+
+            # Qizil "KEY" so'zini topish
+            if "KEY" in text.upper():
+                key_index = text.upper().index("KEY")
+                key_text = text[key_index:]  # KEY so'zidan boshlab barcha matn
+
+                # Javoblarni topish
+                for line in key_text.splitlines():
+                    if "-" in line and line[0].isdigit():  # Masalan: 1-A, 2-B
+                        parts = line.split("-")
+                        if len(parts) == 2:
+                            question_number = parts[0].strip()
+                            answer = parts[1].strip()
+                            true_answers.append(f"{question_number}-{answer}")
+
+        return true_answers
 
     def post(self, request, *args, **kwargs):
         pdf_file = request.FILES.get('file')
+        category = request.data.get('category')
+        subject = request.data.get('subject')
+
         if not pdf_file:
             return Response({"error": "PDF fayl topilmadi."}, status=400)
+        if not category or not subject:
+            return Response({"error": "Category va Subject maydonlari majburiy."}, status=400)
 
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
@@ -84,19 +112,28 @@ class PDFUploadView(APIView):
             return Response({"error": f"Vaqtinchalik fayl yaratishda xatolik: {str(e)}"}, status=500)
 
         try:
-        # PDF dan rasmlarni chiqarish
             image_urls = self.extract_images_from_pdf(temp_pdf_path)
+            true_answers = self.extract_true_answers(temp_pdf_path)  # To'g'ri javoblarni chiqarish
         except Exception as e:
-            return Response({"error": f"PDFdan rasm chiqarishda xatolik: {str(e)}"}, status=500)
+            return Response({"error": f"PDFdan ma'lumot chiqarishda xatolik: {str(e)}"}, status=500)
         finally:
-        # Faylni faqat mavjud bo‘lsa o‘chirish
             if os.path.exists(temp_pdf_path):
                 os.remove(temp_pdf_path)
 
         if not image_urls:
             return Response({"message": "PDF faylda rasm topilmadi."}, status=204)
 
-        return Response({"image_urls": image_urls}, status=201)
+        new_record = Zip.objects.create(
+            image_urls=image_urls,
+            category=category,
+            subject=subject,
+            true_answers=true_answers
+        )
+        new_record.save()
+
+        return Response({
+            "message": "Upload Successfully"
+        }, status=201)
 
 
 
@@ -154,41 +191,6 @@ class PDFUploadView(APIView):
                 raise
 
 
-
-class FilterQuestionsView(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request, *args, **kwargs):
-        id_list = request.query_params.getlist(
-            "id"
-        )  # Idlarni ro'yxat ko'rinishida olish
-        category = request.query_params.get("category")
-        subject = request.query_params.get("subject")
-        date = request.query_params.get("date")
-
-        questions = Zip.objects.all()
-
-        if category:
-            questions = questions.filter(category__iexact=category)
-        if subject:
-            questions = questions.filter(subject__iexact=subject)
-        if id_list:
-            questions = questions.filter(id__in=id_list)
-        if date:
-            try:
-                parsed_date = parse_datetime(date)
-                if parsed_date:
-                    questions = questions.filter(date__date=parsed_date.date())
-                else:
-                    return Response(
-                        {"error": "Invalid date format. Use ISO 8601 format."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-            except Exception as e:
-                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-        serializer = ZipSerializer(questions, many=True)
-        return Response({"questions": serializer.data}, status=status.HTTP_200_OK)
 
 
 class ListQuestionsView(APIView):
@@ -276,8 +278,7 @@ class GenerateRandomQuestionsView(APIView):
                             "id": q.id,
                             "category": q.category,
                             "subject": q.subject,
-                            "text": q.text,
-                            "options": q.options,
+                            "image_urls": q.image_urls,
                             "true_answer": q.true_answer,
                             "list": q.list_id,
                             "order": idx,
@@ -295,8 +296,7 @@ class GenerateRandomQuestionsView(APIView):
                             "id": q.id,
                             "category": q.category,
                             "subject": q.subject,
-                            "text": q.text,
-                            "options": q.options,
+                            "image_urls": q.image_urls,  
                             "true_answer": q.true_answer,
                             "list": q.list_id,
                             "order": idx,
@@ -311,8 +311,6 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-
 
 
 
@@ -359,8 +357,7 @@ class GenerateRandomQuestionsView(APIView):
                             {
                                 "category": category,
                                 "subject": question.get("subject", ""),
-                                "text": question.get("text", ""),
-                                "options": question.get("options", ""),
+                                "image_urls": question.get("image_urls", ""),
                                 "true_answer": question.get("true_answer", ""),
                                 "image": question.get("image", None),
                                 "order": global_order_counter,
@@ -387,8 +384,7 @@ class GenerateRandomQuestionsView(APIView):
                                     list=question_list,
                                     category=category,
                                     subject=question.get("subject", ""),
-                                    text=question.get("text", ""),
-                                    options=question.get("options", ""),
+                                    image_urls=question.get("image_urls", ""),
                                     true_answer=question.get("true_answer", ""),
                                     order=question.get("order", 0),
                                 )
@@ -400,7 +396,7 @@ class GenerateRandomQuestionsView(APIView):
                     )
 
             return Response(
-                {"success": "Questions saved successfully", "data": final_lists},
+                {"success": "Questions saved successfully"},
                 status=status.HTTP_201_CREATED,
             )
 
