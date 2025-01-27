@@ -17,6 +17,7 @@ import fitz
 import tempfile
 import boto3
 import uuid
+import requests
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
 import os
@@ -28,22 +29,40 @@ class PDFUploadView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
-        questions = Zip.objects.all()
+        questions = Zip.objects.all()  # Zip modelidan barcha savollarni olish
         result = []
 
+        # Har bir savolni tekshirish
         for question in questions:
-            pdf_path = question.image_url_list
-            if not os.path.exists(pdf_path):
-                continue
+            pdf_paths = question.image_url_list  # image_url_list ro'yxatini olish
 
-            extracted_urls = self.extract_images_from_pdf(pdf_path)
-            true_answers = self.extract_true_answers(pdf_path)  # To'g'ri javoblarni chiqarish
-            result.append({
-                "category": question.category,
-                "subject": question.subject,
-                "image_url_list": extracted_urls,
-                "true_answers": true_answers
-            })
+            # Har bir URL uchun HTTP so'rovini yuborish
+            valid_urls = []  # faqat mavjud bo'lgan URLlarni saqlash
+            for pdf_path in pdf_paths:
+                try:
+                    response = requests.head(pdf_path)  # head so'rovi faqat URLni tekshiradi
+                    if response.status_code == 200:
+                        valid_urls.append(pdf_path)  # Mavjud URLni saqlash
+                except requests.exceptions.RequestException:
+                    continue  # URLga ulanishda xatolik bo'lsa, keyingi URLga o'tish
+
+            # Agar valid_url mavjud bo'lsa, rasm va to'g'ri javoblarni chiqarish
+            for valid_url in valid_urls:
+                try:
+                    extracted_urls = self.extract_images_from_pdf(valid_url)  # PDFdan rasmni chiqarish
+                    true_answers = self.extract_true_answers(valid_url)  # To'g'ri javoblarni chiqarish
+                    result.append({
+                        "category": question.category,
+                        "subject": question.subject,
+                        "image_url_list": extracted_urls,
+                        "true_answers": true_answers
+                    })
+                except Exception as e:
+                    result.append({
+                        "category": question.category,
+                        "subject": question.subject,
+                        "error": str(e)
+                    })
 
         return Response(result, status=200)
 
