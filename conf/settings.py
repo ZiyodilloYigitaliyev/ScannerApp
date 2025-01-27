@@ -31,9 +31,7 @@ INSTALLED_APPS = [
     'question',
     'storages',
     "corsheaders",
-    'rest_framework',
-    'django_celery_results',
-    'django_celery_beat',
+    'rest_framework'
     
 ]
 # REST_FRAMEWORK = {
