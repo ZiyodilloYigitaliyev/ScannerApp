@@ -2,9 +2,9 @@ from django.db import models
 from question.models import Zip
 
 class ProcessedTest(models.Model):
-    file_url = models.URLField(max_length=500)
+    file_url = models.URLField(max_length=500, default=False)
     bubbles = models.JSONField(help_text="Rasmda Aniqlangan Koordinatalar")
-    phone_number = models.IntegerField()
+    phone_number = models.CharField(max_length=20, unique=True, default=False)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     student_id = models.BigAutoField(primary_key=True)
     total_score = models.FloatField(default=0)

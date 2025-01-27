@@ -8,13 +8,12 @@ import random
 from django.db import transaction
 from django.utils.dateparse import parse_datetime
 from datetime import *
-from django.utils.timezone import make_aware
 from rest_framework.response import Response
 import logging
-from bs4 import BeautifulSoup
 from django.conf import settings
 import re
-import zipfile
+import fitz
+import tempfile
 import boto3
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -24,169 +23,124 @@ logger = logging.getLogger(__name__)
 
 
 
-class HTMLFromZipView(APIView):
+class PDFUploadView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
+        """Barcha PDF fayllar tarkibini qaytarish"""
         questions = Zip.objects.all()
         result = []
 
         for question in questions:
-            question_data = {
-                "text": question.text,
-                "options": question.options,
-                "true_answer": question.true_answer,
+            pdf_path = question.text  # `text` maydonida PDF fayl manzili saqlangan deb hisoblaymiz
+            if not os.path.exists(pdf_path):
+                continue  # Agar fayl mavjud bo'lmasa, uni o'tkazib yuboramiz
+
+            pdf_content = self.extract_pdf_content(pdf_path)
+            result.append({
                 "category": question.category,
-                "subject": question.subject
-            }
-
-            soup = BeautifulSoup(question.text, 'html.parser')
-            for img_tag in soup.find_all('img'):
-                img_src = img_tag.get('src')
-                if img_src and img_src.startswith('images/'):
-                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
-
-            question_data["text"] = str(soup)
-            result.append(question_data)
+                "subject": question.subject,
+                "pdf_content": pdf_content
+            })
 
         return Response(result, status=200)
 
-    def clean_img_tag(self, img_tag, new_src):
-        img_tag.attrs = {'src': new_src}
-    
-    def process_html_task(self, html_file, images, category, subject):
-        soup = BeautifulSoup(html_file, 'html.parser')
-        questions = []
-        current_question = None
+    def extract_images_from_pdf(self, pdf_file):
+        """PDF fayldan barcha rasmlarni chiqarib, S3 ga yuklash"""
+        doc = fitz.open(pdf_file)
+        image_urls = []
 
-        image_urls = {}
-        for image_name, image_data in images.items():
-            try:
-                uploaded_url = self.upload_image_to_s3(image_name, image_data)
-                image_urls[image_name] = uploaded_url
-            except Exception as e:
-                print(f"Error uploading {image_name}: {e}")
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            images = page.get_images(full=True)
 
-        # <img> teglarini tozalash va yangilash
-        for img_tag in soup.find_all('img'):
-            img_src = img_tag.get('src')
-            if img_src and img_src in image_urls:
-                self.clean_img_tag(img_tag, image_urls[img_src])
-            else:
-                img_tag.decompose()  # <img> tegi bucketga yuklanmagan bo'lsa, o'chiramiz
+            for img_index, img in enumerate(images):
+                xref = img[0]
+                base_image = doc.extract_image(xref)
+                image_data = base_image["image"]
 
-        # "KEY" bo‘limini topish va true_answerlarni ajratib olish
-        key_answers = []
-        for p_tag in soup.find_all('p'):
-            if "KEY" in p_tag.get_text(strip=True).upper():
-                key_text = p_tag.get_text(strip=True)
-                matches = re.findall(r'(\d+)-([A-D])', key_text)
-                key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
-                break
+            # Fayl nomini generatsiya qilish (UUID ishlatilmoqda)
+                unique_image_name = f"{uuid.uuid4()}.jpg"
 
-        # Savollarni ajratib olish
-        question_counter = 0
-        for p_tag in soup.find_all('p'):
-            text = p_tag.get_text(strip=True)
-            if not text:
-                continue
-
-            # Yangi savolni boshlash
-            if text[0].isdigit() and '.' in text:
-                if current_question:
-                    questions.append(current_question)
-                question_counter += 1
-                current_question = {
-                    "text": str(p_tag),
-                    "options": "",
-                    "true_answer": None,
-                    "category": category,
-                    "subject": subject
-                }
-
-            # Variantlarni qo‘shish
-            elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)  # Variantlarni tozalash
-
-        if current_question:
-            questions.append(current_question)
-
-        # "KEY"dagi javoblarni savollarga biriktirish
-        for i, question in enumerate(questions):
-            if i < len(key_answers):
-                question["true_answer"] = key_answers[i]
-
-        # Ma'lumotlarni saqlash
-        for question in questions:
-            Zip.objects.create(
-                text=question["text"],
-                options=question["options"],
-                true_answer=question["true_answer"],
-                category=question["category"],
-                subject=question["subject"]
-            )
-
-        return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
+                try:
+                    uploaded_url = self.upload_image_to_s3(unique_image_name, image_data)
+                    image_urls.append(uploaded_url)
+                except Exception as e:
+                    print(f"Error uploading image: {e}")
 
     def post(self, request, *args, **kwargs):
-        zip_file = request.FILES.get('file')
-        if not zip_file:
-            return Response({"error": "ZIP fayl topilmadi"}, status=400)
+        pdf_file = request.FILES.get('file')
+        if not pdf_file:
+            return Response({"error": "PDF fayl topilmadi."}, status=400)
 
-        category = request.data.get('category')
-        subject = request.data.get('subject')
+    # Vaqtinchalik PDF fayl yaratish
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+                temp_pdf.write(pdf_file.read())
+                temp_pdf_path = temp_pdf.name
+        except Exception as e:
+            return Response({"error": f"Vaqtinchalik fayl yaratishda xatolik: {str(e)}"}, status=500)
 
-        if not category or not subject:
-            return Response(
-                {"error": "Category va Subject majburiy maydonlardir."},
-                status=400
-            )
+        try:
+        # PDF dan rasmlarni chiqarish
+            image_urls = self.extract_images_from_pdf(temp_pdf_path)
+        except Exception as e:
+            return Response({"error": f"PDFdan rasm chiqarishda xatolik: {str(e)}"}, status=500)
+        finally:
+        # Faylni faqat mavjud bo‘lsa o‘chirish
+            if os.path.exists(temp_pdf_path):
+                os.remove(temp_pdf_path)
 
-        with zipfile.ZipFile(zip_file, 'r') as z:
-            html_file = None
-            images = {}
+        if not image_urls:
+            return Response({"message": "PDF faylda rasm topilmadi."}, status=204)
 
-            for file_name in z.namelist():
-                if file_name.endswith('.html'):
-                    html_file = z.read(file_name).decode('utf-8')
-                elif file_name.startswith('images/'):
-                    images[file_name] = z.read(file_name)
+        return Response({"image_urls": image_urls}, status=201)
 
-            if not html_file:
-                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
 
-            questions = self.process_html_task(html_file, images, category, subject)
-
-        return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
 
     def upload_image_to_s3(self, image_name, image_data):
-            s3_client = boto3.client(
+        s3_client = boto3.client(
             's3',
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
         )
-            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
 
-            file_name, file_extension = os.path.splitext(image_name)
-            unique_name = file_name
-            s3_key = f"images/{unique_name}{file_extension}"
+    # Fayl nomini unikal qilish
+        s3_key = f"pdf_image/{uuid.uuid4().hex}.jpg"
 
-            while self.check_file_exists_in_s3(s3_client, bucket_name, s3_key):
-                unique_name = f"{uuid.uuid4().hex}{file_extension}"
-                s3_key = f'images/{unique_name}'
-
+        try:
             with NamedTemporaryFile(delete=False) as temp_file:
                 temp_file.write(image_data)
                 temp_file.close()
-                s3_client.upload_file(temp_file.name, bucket_name, s3_key,  ExtraArgs={"ACL": "public-read"})
+
+            # Faylni yuklash
+                s3_client.upload_file(
+                    temp_file.name,
+                    bucket_name,
+                    s3_key,
+                    ExtraArgs={"ACL": "public-read"}
+                )
+
+            # Vaqtinchalik faylni o‘chirish
                 os.unlink(temp_file.name)
 
+        # Fayl URL-ni qaytarish
             return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
+        except Exception as e:
+            print(f"Error uploading {image_name}: {e}")
+            raise
+
 
     def upload_images_concurrently(self, images):
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(self.upload_image_to_s3, img_name, img_data): img_name for img_name, img_data in images.items()}
-            return {future.result(): images[future] for future in futures}  
+            futures = [
+                executor.submit(self.upload_image_to_s3, img_name, img_data)
+                for img_name, img_data in images.items()
+            ]
+            return [future.result() for future in futures]
+
+          
     def check_file_exists_in_s3(self, s3_client, bucket_name, s3_key):
         try:
             s3_client.head_object(Bucket=bucket_name, Key=s3_key)
