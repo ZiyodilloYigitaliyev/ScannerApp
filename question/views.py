@@ -32,7 +32,7 @@ class PDFUploadView(APIView):
         result = []
 
         for question in questions:
-            pdf_path = question.text
+            pdf_path = question.image_url_list
             if not os.path.exists(pdf_path):
                 continue
 
