@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.postgres.fields import ArrayField
 
 class QuestionList(models.Model):
     list_id = models.IntegerField(unique=True, default=100000)
@@ -12,8 +13,7 @@ class Question(models.Model):
     list = models.ForeignKey(QuestionList, related_name='questions', on_delete=models.CASCADE)
     category = models.CharField(max_length=255)
     subject = models.CharField(max_length=255, blank=True)
-    image_urls = models.JSONField(default=list)
-    #options = models.TextField() 
+    image_urls = ArrayField(models.CharField(max_length=255), default=list)
     true_answer = models.CharField(max_length=1, null=True, blank=True)
     order = models.IntegerField(default=0)
     
@@ -22,11 +22,10 @@ class Question(models.Model):
 
     
 class Zip(models.Model):
-    image_urls = models.ManyToManyField(Question)
+    image_url_list = ArrayField(models.CharField(max_length=255), default=list)
     options = models.TextField()
     true_answer = models.CharField(max_length=255, null=True, blank=True)
     category = models.CharField(max_length=255, null=True, blank=True)
-    #images = models.ImageField(upload_to="images/")
     subject = models.CharField(max_length=255, null=True, blank=True)
     date = models.DateField(auto_now_add=True)
 

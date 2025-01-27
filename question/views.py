@@ -5,6 +5,7 @@ from .models import QuestionList, Question, Zip
 from .serializers import ZipSerializer
 from rest_framework.permissions import AllowAny
 import random
+from django.db.models import Q
 from django.db import transaction
 from django.utils.dateparse import parse_datetime
 from datetime import *
@@ -40,7 +41,7 @@ class PDFUploadView(APIView):
             result.append({
                 "category": question.category,
                 "subject": question.subject,
-                "image_urls": extracted_urls,
+                "image_url_list": extracted_urls,
                 "true_answers": true_answers
             })
 
@@ -48,7 +49,7 @@ class PDFUploadView(APIView):
 
     def extract_images_from_pdf(self, pdf_file):
         doc = fitz.open(pdf_file)
-        image_urls = []
+        image_url_list = []
 
         for page_num in range(len(doc)):
             page = doc[page_num]
@@ -63,11 +64,11 @@ class PDFUploadView(APIView):
 
                 try:
                     uploaded_url = self.upload_image_to_s3(unique_image_name, image_data)
-                    image_urls.append(uploaded_url)
+                    image_url_list.append(uploaded_url)
                 except Exception as e:
                     print(f"Error uploading image: {e}")
 
-        return image_urls
+        return image_url_list
 
     def extract_true_answers(self, pdf_file):
         """PDF fayl ichidan 'KEY' so'zidan keyingi to'g'ri javoblarni chiqaradi."""
@@ -112,31 +113,27 @@ class PDFUploadView(APIView):
             return Response({"error": f"Vaqtinchalik fayl yaratishda xatolik: {str(e)}"}, status=500)
 
         try:
-            image_urls = self.extract_images_from_pdf(temp_pdf_path)
+            image_url_list = self.extract_images_from_pdf(temp_pdf_path)
         except Exception as e:
             return Response({"error": f"PDFdan rasm chiqarishda xatolik: {str(e)}"}, status=500)
         finally:
             if os.path.exists(temp_pdf_path):
                 os.remove(temp_pdf_path)
 
+    # `Zip` obyekti yaratish
         new_record = Zip.objects.create(
-            image_url_object=image_url_object,
             category=category,
-            subject=subject
+            subject=subject,
+            image_url_list=image_url_list  # ArrayField ro'yxatini shu tarzda o'rnatish
         )
-
-    # ManyToManyField qiymatlarni o'rnatish
-        image_url_objects = []
-        for url in image_urls:
-            image_url_object, created = Question.objects.get_or_create(url=url)
-            image_url_objects.append(image_url_object)
-
-        new_record.image_urls.set(image_url_objects)
 
         return Response({
             "message": "Upload Successfully",
-            "image_urls": image_urls
         }, status=201)
+
+
+
+
 
 
 
