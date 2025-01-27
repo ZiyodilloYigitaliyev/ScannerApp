@@ -143,16 +143,12 @@ class PDFUploadView(APIView):
         new_record = Zip.objects.create(
             category=category,
             subject=subject,
-            image_url_list=image_url_list  # ArrayField ro'yxatini shu tarzda o'rnatish
+            image_url_list=image_url_list
         )
 
         return Response({
             "message": "Upload Successfully",
         }, status=201)
-
-
-
-
 
 
 
@@ -336,7 +332,7 @@ class GenerateRandomQuestionsView(APIView):
 
     def post(self, request):
         try:
-        # Ma'lumotni olish
+            # Ma'lumotni olish
             if isinstance(request.data, list):
                 request_data = request.data[0]
             else:
@@ -373,11 +369,18 @@ class GenerateRandomQuestionsView(APIView):
 
                 for category, questions in new_list.items():
                     for question in questions:
+                    # image_urls to'g'ri formatlash
+                        image_urls = question.get("image_urls", [])
+                        if isinstance(image_urls, str):
+                            image_urls = [image_urls]  # Bitta stringni ro'yxatga o'girish
+                        elif not isinstance(image_urls, list):
+                            image_urls = []  # Noto'g'ri formatni bo'sh ro'yxatga almashtirish
+
                         final_questions[category].append(
                             {
                                 "category": category,
                                 "subject": question.get("subject", ""),
-                                "image_urls": question.get("image_urls", ""),
+                                "image_urls": image_urls,  # To'g'ri formatda saqlash
                                 "true_answer": question.get("true_answer", ""),
                                 "image": question.get("image", None),
                                 "order": global_order_counter,
@@ -396,7 +399,7 @@ class GenerateRandomQuestionsView(APIView):
                 try:
                     with transaction.atomic():
                         question_list = QuestionList.objects.create(
-                        list_id=list_id, question_class=question_class
+                            list_id=list_id, question_class=question_class
                         )
                         for category, questions in final_questions.items():
                             for question in questions:
@@ -404,7 +407,7 @@ class GenerateRandomQuestionsView(APIView):
                                     list=question_list,
                                     category=category,
                                     subject=question.get("subject", ""),
-                                    image_urls=question.get("image_urls", ""),
+                                    image_urls=question.get("image_urls", "{}"),  # To'g'ri formatda
                                     true_answer=question.get("true_answer", ""),
                                     order=question.get("order", 0),
                                 )
@@ -421,15 +424,17 @@ class GenerateRandomQuestionsView(APIView):
             )
 
         except Exception as e:
+            print(f"Unexpected error: {e}")
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    @staticmethod
-    def get_random_items(source_list, count):
-        if not source_list:
-            return []
-        count = min(count, len(source_list))
-        return random.sample(source_list, count)
+@staticmethod
+def get_random_items(source_list, count):
+    if not source_list:
+        return []
+    count = min(count, len(source_list))
+    return random.sample(source_list, count)
+
 
