@@ -120,7 +120,7 @@ class PDFUploadView(APIView):
                 os.remove(temp_pdf_path)
 
         new_record = Zip.objects.create(
-            text=pdf_file.name,
+            image_url_object=image_url_object,
             category=category,
             subject=subject
         )
