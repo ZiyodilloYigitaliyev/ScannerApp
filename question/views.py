@@ -12,7 +12,7 @@ from rest_framework.response import Response
 import logging
 from django.conf import settings
 import re
-import fitz
+import fitz 
 import tempfile
 import boto3
 import uuid
@@ -27,7 +27,6 @@ class PDFUploadView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
-        """Barcha PDF fayllar tarkibini qaytarish"""
         questions = Zip.objects.all()
         result = []
 
@@ -45,35 +44,38 @@ class PDFUploadView(APIView):
 
         return Response(result, status=200)
 
+
     def extract_images_from_pdf(self, pdf_file):
-        """PDF fayldan barcha rasmlarni chiqarib, S3 ga yuklash"""
         doc = fitz.open(pdf_file)
         image_urls = []
 
         for page_num in range(len(doc)):
             page = doc[page_num]
-            images = page.get_images(full=True)
+            images = page.get_images(full=True)  # Sahifadagi barcha rasmlarni oladi
 
-            for img_index, img in enumerate(images):
-                xref = img[0]
-                base_image = doc.extract_image(xref)
-                image_data = base_image["image"]
+        for img_index, img in enumerate(images):
+            xref = img[0]  # Xref bu rasmning unikalligini aniqlovchi indeks
+            base_image = doc.extract_image(xref)  # Rasm ma'lumotlarini chiqarib oladi
+            image_data = base_image["image"]  # Asl rasm ma'lumotlari
 
-            # Fayl nomini generatsiya qilish (UUID ishlatilmoqda)
-                unique_image_name = f"{uuid.uuid4()}.jpg"
+            # Fayl nomini unikallash
+            unique_image_name = f"{uuid.uuid4()}.jpg"
 
-                try:
-                    uploaded_url = self.upload_image_to_s3(unique_image_name, image_data)
-                    image_urls.append(uploaded_url)
-                except Exception as e:
-                    print(f"Error uploading image: {e}")
+            try:
+                # Rasmlarni S3 ga yuklash
+                uploaded_url = self.upload_image_to_s3(unique_image_name, image_data)
+                image_urls.append(uploaded_url)
+            except Exception as e:
+                print(f"Error uploading image: {e}")
+
+        return image_urls
+
 
     def post(self, request, *args, **kwargs):
         pdf_file = request.FILES.get('file')
         if not pdf_file:
             return Response({"error": "PDF fayl topilmadi."}, status=400)
 
-    # Vaqtinchalik PDF fayl yaratish
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
                 temp_pdf.write(pdf_file.read())
