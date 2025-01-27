@@ -113,27 +113,31 @@ class PDFUploadView(APIView):
 
         try:
             image_urls = self.extract_images_from_pdf(temp_pdf_path)
-            true_answers = self.extract_true_answers(temp_pdf_path)  # To'g'ri javoblarni chiqarish
         except Exception as e:
-            return Response({"error": f"PDFdan ma'lumot chiqarishda xatolik: {str(e)}"}, status=500)
+            return Response({"error": f"PDFdan rasm chiqarishda xatolik: {str(e)}"}, status=500)
         finally:
             if os.path.exists(temp_pdf_path):
                 os.remove(temp_pdf_path)
 
-        if not image_urls:
-            return Response({"message": "PDF faylda rasm topilmadi."}, status=204)
-
         new_record = Zip.objects.create(
-            image_urls=image_urls,
+            text=pdf_file.name,
             category=category,
-            subject=subject,
-            true_answers=true_answers
+            subject=subject
         )
-        new_record.save()
+
+    # ManyToManyField qiymatlarni o'rnatish
+        image_url_objects = []
+        for url in image_urls:
+            image_url_object, created = Question.objects.get_or_create(url=url)
+            image_url_objects.append(image_url_object)
+
+        new_record.image_urls.set(image_url_objects)
 
         return Response({
-            "message": "Upload Successfully"
+            "message": "Upload Successfully",
+            "image_urls": image_urls
         }, status=201)
+
 
 
 
