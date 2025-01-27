@@ -287,11 +287,9 @@ class GenerateRandomQuestionsView(APIView):
 
             if date:
                 try:
-                    naive_date_time = datetime.strptime(date, "%Y-%m-%d")
-                    date_time = make_aware(naive_date_time)
-                    question_lists = question_lists.filter(
-                        created_at__date=date_time.date()
-                    )
+                    # Faqat yil, oy va kunni olish uchun datetime yaratish
+                    filter_date = datetime.strptime(date, "%Y-%m-%d").date()
+                    question_lists = question_lists.filter(created_at__date=filter_date)
                 except ValueError:
                     return Response(
                         {"error": "Invalid date format. Use YYYY-MM-DD."},
@@ -357,6 +355,7 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 
