@@ -69,22 +69,26 @@ class HTMLFromZipView(APIView):
         questions = []
         current_question = None
 
-        # Upload images to S3 and create a mapping of local paths to S3 URLs
+    # Rasmlarni S3 bucketga yuklash va URL'larni xaritada saqlash
         image_urls = {}
         for image_name, image_data in images.items():
             try:
                 uploaded_url = self.upload_image_to_s3(image_name, image_data)
                 image_urls[image_name] = uploaded_url
+                print(f"Image {image_name} successfully uploaded to {uploaded_url}")
             except Exception as e:
                 print(f"Error uploading {image_name}: {e}")
 
-        # Update <img> tags in the HTML content
+    # <img> teglarining URL'larini yangilash
         for img_tag in soup.find_all('img'):
-            img_src = img_tag.get('src')
+            img_src = img_tag.get('src')  # Rasmlarning local yo'li
             if img_src and img_src in image_urls:
-                img_tag['src'] = image_urls[img_src]
+                img_tag['src'] = image_urls[img_src]  # S3 URL'ga almashtirish
+                print(f"Image source updated: {img_src} -> {image_urls[img_src]}")
+            else:
+                print(f"Image not found in uploaded images: {img_src}")
 
-        # Extract questions and process them
+    # "KEY" bo‘limini topish va true_answerlarni ajratib olish
         key_answers = []
         for p_tag in soup.find_all('p'):
             if "KEY" in p_tag.get_text(strip=True).upper():
@@ -93,25 +97,26 @@ class HTMLFromZipView(APIView):
                 key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
                 break
 
+    # Savollarni ajratib olish
         question_counter = 0
         for p_tag in soup.find_all('p'):
             text = p_tag.get_text(strip=True)
             if not text:
                 continue
 
-            if text[0].isdigit() and '.' in text:
-                if current_question:
-                    questions.append(current_question)
-                question_counter += 1
-                current_question = {
-                    "text": str(p_tag),
-                    "options": "",
-                    "true_answer": None,
-                    "category": category,
-                    "subject": subject
-                }
-            elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)
+        if text[0].isdigit() and '.' in text:
+            if current_question:
+                questions.append(current_question)
+            question_counter += 1
+            current_question = {
+                "text": str(p_tag),
+                "options": "",
+                "true_answer": None,
+                "category": category,
+                "subject": subject
+            }
+        elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
+            current_question["options"] += str(p_tag)
 
         if current_question:
             questions.append(current_question)
@@ -120,6 +125,7 @@ class HTMLFromZipView(APIView):
             if i < len(key_answers):
                 question["true_answer"] = key_answers[i]
 
+    # Ma'lumotlarni saqlash
         for question in questions:
             Zip.objects.create(
                 text=question["text"],
@@ -130,6 +136,7 @@ class HTMLFromZipView(APIView):
             )
 
         return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
+
     
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
