@@ -21,10 +21,36 @@ import os
 logger = logging.getLogger(__name__)
 
 
-
 class HTMLFromZipView(APIView):
     permission_classes = [AllowAny]
 
+    def get(self, request, *args, **kwargs):
+        questions = Zip.objects.all()
+        result = []
+
+        for question in questions:
+            question_data = {
+                "text": question.text,
+                "options": question.options,
+                "true_answer": question.true_answer,
+                "category": question.category,
+                "subject": question.subject
+            }
+
+            soup = BeautifulSoup(question.text, 'html.parser')
+            for img_tag in soup.find_all('img'):
+                img_src = img_tag.get('src')
+                if img_src and img_src.startswith('images/'):
+                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
+
+            question_data["text"] = str(soup)
+            result.append(question_data)
+
+        return Response(result, status=200)
+
+    def clean_img_tag(self, img_tag, new_src):
+        img_tag.attrs = {'src': new_src}
+    
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
         questions = []
@@ -38,13 +64,15 @@ class HTMLFromZipView(APIView):
             except Exception as e:
                 print(f"Error uploading {image_name}: {e}")
 
-        # Extract images and update their src with the uploaded S3 URLs
+        # <img> teglarini tozalash va yangilash
         for img_tag in soup.find_all('img'):
             img_src = img_tag.get('src')
             if img_src and img_src in image_urls:
-                img_tag['src'] = image_urls[img_src]  # Update the img src attribute to the uploaded URL
+                self.clean_img_tag(img_tag, image_urls[img_src])
+            else:
+                img_tag.decompose()  # <img> tegi bucketga yuklanmagan bo'lsa, o'chiramiz
 
-        # Extract the answers from the "KEY" section
+        # "KEY" bo‘limini topish va true_answerlarni ajratib olish
         key_answers = []
         for p_tag in soup.find_all('p'):
             if "KEY" in p_tag.get_text(strip=True).upper():
@@ -53,56 +81,49 @@ class HTMLFromZipView(APIView):
                 key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
                 break
 
-        # Extract questions, options, and images
+        # Savollarni ajratib olish
         question_counter = 0
         for p_tag in soup.find_all('p'):
             text = p_tag.get_text(strip=True)
             if not text:
                 continue
 
+            # Yangi savolni boshlash
             if text[0].isdigit() and '.' in text:
                 if current_question:
                     questions.append(current_question)
                 question_counter += 1
                 current_question = {
-                    "text": str(p_tag),  # Capture the question text (including HTML)
+                    "text": str(p_tag),
                     "options": "",
                     "true_answer": None,
                     "category": category,
-                    "subject": subject,
-                    "images": []  # To hold images for this question
+                    "subject": subject
                 }
 
-            # If the text starts with answer choices (A, B, C, D)
+            # Variantlarni qo‘shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)  # Add the options to the current question
-
-            # Capture any <img> tags within this <p> tag as part of the question
-            for img_tag in p_tag.find_all('img'):
-                img_src = img_tag.get('src')
-                if img_src:
-                    current_question["images"].append(img_src)
+                current_question["options"] += str(p_tag)  # Variantlarni tozalash
 
         if current_question:
             questions.append(current_question)
 
-        # Associate answers from the KEY section
+        # "KEY"dagi javoblarni savollarga biriktirish
         for i, question in enumerate(questions):
             if i < len(key_answers):
                 question["true_answer"] = key_answers[i]
 
-        # Save the processed questions to the database
+        # Ma'lumotlarni saqlash
         for question in questions:
             Zip.objects.create(
                 text=question["text"],
                 options=question["options"],
                 true_answer=question["true_answer"],
                 category=question["category"],
-                subject=question["subject"],
+                subject=question["subject"]
             )
 
         return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
-
 
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
@@ -146,7 +167,6 @@ class HTMLFromZipView(APIView):
         )
         bucket_name = settings.AWS_STORAGE_BUCKET_NAME
 
-    # Fayl nomini unikal qilish
         s3_key = f"pdf_image/{uuid.uuid4().hex}.jpg"
 
         try:
