@@ -95,7 +95,7 @@ class HTMLFromZipView(APIView):
                     questions.append(current_question)
                 question_counter += 1
                 current_question = {
-                    "text": str(p_tag),
+                    "text": str(p_tag),  # HTML teglardan tozalamasdan saqlaymiz
                     "options": "",
                     "true_answer": None,
                     "category": category,
@@ -156,6 +156,8 @@ class HTMLFromZipView(APIView):
             questions = self.process_html_task(html_file, images, category, subject)
 
         return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
+
+
 
     def upload_image_to_s3(self, image_name, image_data):
             s3_client = boto3.client(
