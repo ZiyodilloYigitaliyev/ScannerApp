@@ -70,7 +70,7 @@ class HTMLFromZipView(APIView):
                     "true_answer": None,
                     "category": category,
                     "subject": subject,
-                    "images": []  # To hold images for this question
+                    #"images": []  # To hold images for this question
                 }
 
             # If the text starts with answer choices (A, B, C, D)
@@ -99,7 +99,6 @@ class HTMLFromZipView(APIView):
                 true_answer=question["true_answer"],
                 category=question["category"],
                 subject=question["subject"],
-                images=question["images"]
             )
 
         return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
