@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class HTMLFromZipView(APIView):
+    permission_classes = [AllowAny]
 
     def clean_img_tag(self, img_tag, new_src):
         img_tag.attrs = {'src': new_src}
