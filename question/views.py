@@ -172,7 +172,7 @@ class HTMLFromZipView(APIView):
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
         )
         bucket_name = settings.AWS_STORAGE_BUCKET_NAME
-        s3_key = f"pdf_image/{uuid.uuid4().hex}.jpg"
+        s3_key = f"images/{uuid.uuid4().hex}.jpg"
 
         try:
             with NamedTemporaryFile(delete=False) as temp_file:
