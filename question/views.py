@@ -130,6 +130,37 @@ class HTMLFromZipView(APIView):
             )
 
         return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
+    
+    def post(self, request, *args, **kwargs):
+        zip_file = request.FILES.get('file')
+        if not zip_file:
+            return Response({"error": "ZIP fayl topilmadi"}, status=400)
+        
+        category = request.data.get('category')
+        subject = request.data.get('subject')
+
+        if not category or not subject:
+            return Response(
+                {"error": "Category va Subject majburiy maydonlardir."},
+                status=400
+            )
+
+        with zipfile.ZipFile(zip_file, 'r') as z:
+            html_file = None
+            images = {}
+
+            for file_name in z.namelist():
+                if file_name.endswith('.html'):
+                    html_file = z.read(file_name).decode('utf-8')
+                elif file_name.startswith('images/'):
+                    images[file_name] = z.read(file_name)
+
+            if not html_file:
+                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
+
+            questions = self.process_html_task(html_file, images, category, subject)
+
+        return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
 
     def upload_image_to_s3(self, image_name, image_data):
         """
