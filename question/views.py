@@ -22,32 +22,8 @@ import os
 logger = logging.getLogger(__name__)
 
 
+
 class HTMLFromZipView(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request, *args, **kwargs):
-        questions = Zip.objects.all()
-        result = []
-
-        for question in questions:
-            question_data = {
-                "text": question.text,
-                "options": question.options,
-                "true_answer": question.true_answer,
-                "category": question.category,
-                "subject": question.subject
-            }
-
-            soup = BeautifulSoup(question.text, 'html.parser')
-            for img_tag in soup.find_all('img'):
-                img_src = img_tag.get('src')
-                if img_src and img_src.startswith('images/'):
-                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
-
-            question_data["text"] = str(soup)
-            result.append(question_data)
-
-        return Response(result, status=200)
 
     def clean_img_tag(self, img_tag, new_src):
         img_tag.attrs = {'src': new_src}
@@ -57,6 +33,7 @@ class HTMLFromZipView(APIView):
         questions = []
         current_question = None
 
+        # Rasmlarni S3 bucketga yuklash va URLni yangilash
         image_urls = {}
         for image_name, image_data in images.items():
             try:
@@ -104,7 +81,7 @@ class HTMLFromZipView(APIView):
 
             # Variantlarni qo‘shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)  # Variantlarni tozalash
+                current_question["options"] += str(p_tag)
 
         if current_question:
             questions.append(current_question)
@@ -125,37 +102,6 @@ class HTMLFromZipView(APIView):
             )
 
         return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
-
-    def post(self, request, *args, **kwargs):
-        zip_file = request.FILES.get('file')
-        if not zip_file:
-            return Response({"error": "ZIP fayl topilmadi"}, status=400)
-
-        category = request.data.get('category')
-        subject = request.data.get('subject')
-
-        if not category or not subject:
-            return Response(
-                {"error": "Category va Subject majburiy maydonlardir."},
-                status=400
-            )
-
-        with zipfile.ZipFile(zip_file, 'r') as z:
-            html_file = None
-            images = {}
-
-            for file_name in z.namelist():
-                if file_name.endswith('.html'):
-                    html_file = z.read(file_name).decode('utf-8')
-                elif file_name.startswith('images/'):
-                    images[file_name] = z.read(file_name)
-
-            if not html_file:
-                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
-
-            questions = self.process_html_task(html_file, images, category, subject)
-
-        return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
 
 
 
