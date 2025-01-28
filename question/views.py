@@ -26,9 +26,6 @@ class HTMLFromZipView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
-        """
-        Zip modelidan savollarni olish va qaytarish.
-        """
         questions = Zip.objects.all()
         result = []
 
@@ -41,7 +38,6 @@ class HTMLFromZipView(APIView):
                 "subject": question.subject
             }
 
-            # Rasmlar uchun to'liq URL yaratish
             soup = BeautifulSoup(question.text, 'html.parser')
             for img_tag in soup.find_all('img'):
                 img_src = img_tag.get('src')
@@ -53,12 +49,14 @@ class HTMLFromZipView(APIView):
 
         return Response(result, status=200)
 
+    def clean_img_tag(self, img_tag, new_src):
+        img_tag.attrs = {'src': new_src}
+    
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
         questions = []
         current_question = None
 
-        # Rasmlarni S3 bucketga yuklash va URLni yangilash
         image_urls = {}
         for image_name, image_data in images.items():
             try:
@@ -67,11 +65,13 @@ class HTMLFromZipView(APIView):
             except Exception as e:
                 print(f"Error uploading {image_name}: {e}")
 
-        # <img> teglarining URLini yangilash
+        # <img> teglarini tozalash va yangilash
         for img_tag in soup.find_all('img'):
             img_src = img_tag.get('src')
             if img_src and img_src in image_urls:
-                img_tag['src'] = image_urls[img_src]
+                self.clean_img_tag(img_tag, image_urls[img_src])
+            else:
+                img_tag.decompose()  # <img> tegi bucketga yuklanmagan bo'lsa, o'chiramiz
 
         # "KEY" bo‘limini topish va true_answerlarni ajratib olish
         key_answers = []
@@ -104,7 +104,7 @@ class HTMLFromZipView(APIView):
 
             # Variantlarni qo‘shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)
+                current_question["options"] += str(p_tag)  # Variantlarni tozalash
 
         if current_question:
             questions.append(current_question)
@@ -125,12 +125,13 @@ class HTMLFromZipView(APIView):
             )
 
         return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
-    
+
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
         if not zip_file:
             return Response({"error": "ZIP fayl topilmadi"}, status=400)
-        
+
+
         category = request.data.get('category')
         subject = request.data.get('subject')
 
@@ -156,10 +157,6 @@ class HTMLFromZipView(APIView):
             questions = self.process_html_task(html_file, images, category, subject)
 
         return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
-
-
-
-
 
     def upload_image_to_s3(self, image_name, image_data):
         s3_client = boto3.client(
