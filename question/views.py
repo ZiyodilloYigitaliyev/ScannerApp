@@ -22,13 +22,37 @@ import os
 logger = logging.getLogger(__name__)
 
 
-
 class HTMLFromZipView(APIView):
     permission_classes = [AllowAny]
 
-    def clean_img_tag(self, img_tag, new_src):
-        img_tag.attrs = {'src': new_src}
-    
+    def get(self, request, *args, **kwargs):
+        """
+        Zip modelidan savollarni olish va qaytarish.
+        """
+        questions = Zip.objects.all()
+        result = []
+
+        for question in questions:
+            question_data = {
+                "text": question.text,
+                "options": question.options,
+                "true_answer": question.true_answer,
+                "category": question.category,
+                "subject": question.subject
+            }
+
+            # Rasmlar uchun to'liq URL yaratish
+            soup = BeautifulSoup(question.text, 'html.parser')
+            for img_tag in soup.find_all('img'):
+                img_src = img_tag.get('src')
+                if img_src and img_src.startswith('images/'):
+                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
+
+            question_data["text"] = str(soup)
+            result.append(question_data)
+
+        return Response(result, status=200)
+
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
         questions = []
@@ -43,13 +67,11 @@ class HTMLFromZipView(APIView):
             except Exception as e:
                 print(f"Error uploading {image_name}: {e}")
 
-        # <img> teglarini tozalash va yangilash
+        # <img> teglarining URLini yangilash
         for img_tag in soup.find_all('img'):
             img_src = img_tag.get('src')
             if img_src and img_src in image_urls:
-                self.clean_img_tag(img_tag, image_urls[img_src])
-            else:
-                img_tag.decompose()  # <img> tegi bucketga yuklanmagan bo'lsa, o'chiramiz
+                img_tag['src'] = image_urls[img_src]
 
         # "KEY" bo‘limini topish va true_answerlarni ajratib olish
         key_answers = []
@@ -103,6 +125,38 @@ class HTMLFromZipView(APIView):
             )
 
         return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
+    
+    def post(self, request, *args, **kwargs):
+        zip_file = request.FILES.get('file')
+        if not zip_file:
+            return Response({"error": "ZIP fayl topilmadi"}, status=400)
+        
+        category = request.data.get('category')
+        subject = request.data.get('subject')
+
+        if not category or not subject:
+            return Response(
+                {"error": "Category va Subject majburiy maydonlardir."},
+                status=400
+            )
+
+        with zipfile.ZipFile(zip_file, 'r') as z:
+            html_file = None
+            images = {}
+
+            for file_name in z.namelist():
+                if file_name.endswith('.html'):
+                    html_file = z.read(file_name).decode('utf-8')
+                elif file_name.startswith('images/'):
+                    images[file_name] = z.read(file_name)
+
+            if not html_file:
+                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
+
+            questions = self.process_html_task(html_file, images, category, subject)
+
+        return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
+
 
 
 
