@@ -5,19 +5,16 @@ from .models import QuestionList, Question, Zip
 from .serializers import ZipSerializer
 from rest_framework.permissions import AllowAny
 import random
-from django.db.models import Q
 from django.db import transaction
-from django.utils.dateparse import parse_datetime
+from bs4 import BeautifulSoup
+import zipfile
 from datetime import *
 from rest_framework.response import Response
 import logging
 from django.conf import settings
 import re
-import fitz 
-import tempfile
 import boto3
 import uuid
-import requests
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
 import os
@@ -25,130 +22,140 @@ logger = logging.getLogger(__name__)
 
 
 
-class PDFUploadView(APIView):
+class HTMLFromZipView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
-        questions = Zip.objects.all()  # Zip modelidan barcha savollarni olish
+        questions = Zip.objects.all()
         result = []
 
-        # Har bir savolni tekshirish
         for question in questions:
-            pdf_paths = question.image_url_list  # image_url_list ro'yxatini olish
+            question_data = {
+                "text": question.text,
+                "options": question.options,
+                "true_answer": question.true_answer,
+                "category": question.category,
+                "subject": question.subject
+            }
 
-            # Har bir URL uchun HTTP so'rovini yuborish
-            valid_urls = []  # faqat mavjud bo'lgan URLlarni saqlash
-            for pdf_path in pdf_paths:
-                try:
-                    response = requests.head(pdf_path)  # head so'rovi faqat URLni tekshiradi
-                    if response.status_code == 200:
-                        valid_urls.append(pdf_path)  # Mavjud URLni saqlash
-                except requests.exceptions.RequestException:
-                    continue  # URLga ulanishda xatolik bo'lsa, keyingi URLga o'tish
+            soup = BeautifulSoup(question.text, 'html.parser')
+            for img_tag in soup.find_all('img'):
+                img_src = img_tag.get('src')
+                if img_src and img_src.startswith('images/'):
+                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
 
-            # Agar valid_url mavjud bo'lsa, rasm va to'g'ri javoblarni chiqarish
-            for valid_url in valid_urls:
-                try:
-                    extracted_urls = self.extract_images_from_pdf(valid_url)  # PDFdan rasmni chiqarish
-                    true_answers = self.extract_true_answers(valid_url)  # To'g'ri javoblarni chiqarish
-                    result.append({
-                        "category": question.category,
-                        "subject": question.subject,
-                        "image_url_list": extracted_urls,
-                        "true_answers": true_answers
-                    })
-                except Exception as e:
-                    result.append({
-                        "category": question.category,
-                        "subject": question.subject,
-                        "error": str(e)
-                    })
+            question_data["text"] = str(soup)
+            result.append(question_data)
 
         return Response(result, status=200)
 
-    def extract_images_from_pdf(self, pdf_file):
-        doc = fitz.open(pdf_file)
-        image_url_list = []
+    def clean_img_tag(self, img_tag, new_src):
+        img_tag.attrs = {'src': new_src}
+    
+    def process_html_task(self, html_file, images, category, subject):
+        soup = BeautifulSoup(html_file, 'html.parser')
+        questions = []
+        current_question = None
 
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            images = page.get_images(full=True)
+        image_urls = {}
+        for image_name, image_data in images.items():
+            try:
+                uploaded_url = self.upload_image_to_s3(image_name, image_data)
+                image_urls[image_name] = uploaded_url
+            except Exception as e:
+                print(f"Error uploading {image_name}: {e}")
 
-            for img_index, img in enumerate(images):
-                xref = img[0]
-                base_image = doc.extract_image(xref)
-                image_data = base_image["image"]
+        # <img> teglarini tozalash va yangilash
+        for img_tag in soup.find_all('img'):
+            img_src = img_tag.get('src')
+            if img_src and img_src in image_urls:
+                self.clean_img_tag(img_tag, image_urls[img_src])
+            else:
+                img_tag.decompose()  # <img> tegi bucketga yuklanmagan bo'lsa, o'chiramiz
 
-                unique_image_name = f"{uuid.uuid4()}.jpg"
+        # "KEY" bo‘limini topish va true_answerlarni ajratib olish
+        key_answers = []
+        for p_tag in soup.find_all('p'):
+            if "KEY" in p_tag.get_text(strip=True).upper():
+                key_text = p_tag.get_text(strip=True)
+                matches = re.findall(r'(\d+)-([A-D])', key_text)
+                key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
+                break
 
-                try:
-                    uploaded_url = self.upload_image_to_s3(unique_image_name, image_data)
-                    image_url_list.append(uploaded_url)
-                except Exception as e:
-                    print(f"Error uploading image: {e}")
+        # Savollarni ajratib olish
+        question_counter = 0
+        for p_tag in soup.find_all('p'):
+            text = p_tag.get_text(strip=True)
+            if not text:
+                continue
 
-        return image_url_list
+            # Yangi savolni boshlash
+            if text[0].isdigit() and '.' in text:
+                if current_question:
+                    questions.append(current_question)
+                question_counter += 1
+                current_question = {
+                    "text": str(p_tag),
+                    "options": "",
+                    "true_answer": None,
+                    "category": category,
+                    "subject": subject
+                }
 
-    def extract_true_answers(self, pdf_file):
-        """PDF fayl ichidan 'KEY' so'zidan keyingi to'g'ri javoblarni chiqaradi."""
-        doc = fitz.open(pdf_file)
-        true_answers = []
+            # Variantlarni qo‘shish
+            elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
+                current_question["options"] += str(p_tag)  # Variantlarni tozalash
 
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            text = page.get_text("text")  # Sahifa matnini chiqarib olish
+        if current_question:
+            questions.append(current_question)
 
-            # Qizil "KEY" so'zini topish
-            if "KEY" in text.upper():
-                key_index = text.upper().index("KEY")
-                key_text = text[key_index:]  # KEY so'zidan boshlab barcha matn
+        # "KEY"dagi javoblarni savollarga biriktirish
+        for i, question in enumerate(questions):
+            if i < len(key_answers):
+                question["true_answer"] = key_answers[i]
 
-                # Javoblarni topish
-                for line in key_text.splitlines():
-                    if "-" in line and line[0].isdigit():  # Masalan: 1-A, 2-B
-                        parts = line.split("-")
-                        if len(parts) == 2:
-                            question_number = parts[0].strip()
-                            answer = parts[1].strip()
-                            true_answers.append(f"{question_number}-{answer}")
+        # Ma'lumotlarni saqlash
+        for question in questions:
+            Zip.objects.create(
+                text=question["text"],
+                options=question["options"],
+                true_answer=question["true_answer"],
+                category=question["category"],
+                subject=question["subject"]
+            )
 
-        return true_answers
+        return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
 
     def post(self, request, *args, **kwargs):
-        pdf_file = request.FILES.get('file')
+        zip_file = request.FILES.get('file')
+        if not zip_file:
+            return Response({"error": "ZIP fayl topilmadi"}, status=400)
+
         category = request.data.get('category')
         subject = request.data.get('subject')
 
-        if not pdf_file:
-            return Response({"error": "PDF fayl topilmadi."}, status=400)
         if not category or not subject:
-            return Response({"error": "Category va Subject maydonlari majburiy."}, status=400)
+            return Response(
+                {"error": "Category va Subject majburiy maydonlardir."},
+                status=400
+            )
 
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-                temp_pdf.write(pdf_file.read())
-                temp_pdf_path = temp_pdf.name
-        except Exception as e:
-            return Response({"error": f"Vaqtinchalik fayl yaratishda xatolik: {str(e)}"}, status=500)
+        with zipfile.ZipFile(zip_file, 'r') as z:
+            html_file = None
+            images = {}
 
-        try:
-            image_url_list = self.extract_images_from_pdf(temp_pdf_path)
-        except Exception as e:
-            return Response({"error": f"PDFdan rasm chiqarishda xatolik: {str(e)}"}, status=500)
-        finally:
-            if os.path.exists(temp_pdf_path):
-                os.remove(temp_pdf_path)
+            for file_name in z.namelist():
+                if file_name.endswith('.html'):
+                    html_file = z.read(file_name).decode('utf-8')
+                elif file_name.startswith('images/'):
+                    images[file_name] = z.read(file_name)
 
-    # `Zip` obyekti yaratish
-        new_record = Zip.objects.create(
-            category=category,
-            subject=subject,
-            image_url_list=image_url_list
-        )
+            if not html_file:
+                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
 
-        return Response({
-            "message": "Upload Successfully",
-        }, status=201)
+            questions = self.process_html_task(html_file, images, category, subject)
+
+        return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
 
 
 
@@ -234,10 +241,6 @@ class DeleteAllQuestionsView(APIView):
         )
 
 
-# class QuestionPagination(PageNumberPagination):
-#     page_size = 100 
-#     page_size_query_param = 'limit'  
-#     max_page_size = 1000  
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
@@ -294,7 +297,8 @@ class GenerateRandomQuestionsView(APIView):
                             "id": q.id,
                             "category": q.category,
                             "subject": q.subject,
-                            "image_urls": q.image_urls,
+                            "text": q.text,
+                            "options": q.options,
                             "true_answer": q.true_answer,
                             "list": q.list_id,
                             "order": idx,
@@ -312,7 +316,8 @@ class GenerateRandomQuestionsView(APIView):
                             "id": q.id,
                             "category": q.category,
                             "subject": q.subject,
-                            "image_urls": q.image_urls,  
+                            "text": q.text,
+                            "options": q.options,
                             "true_answer": q.true_answer,
                             "list": q.list_id,
                             "order": idx,
@@ -330,9 +335,11 @@ class GenerateRandomQuestionsView(APIView):
 
 
 
+
+
     def post(self, request):
         try:
-            # Ma'lumotni olish
+        # Ma'lumotni olish
             if isinstance(request.data, list):
                 request_data = request.data[0]
             else:
@@ -369,18 +376,12 @@ class GenerateRandomQuestionsView(APIView):
 
                 for category, questions in new_list.items():
                     for question in questions:
-                    # image_urls to'g'ri formatlash
-                        image_urls = question.get("image_urls", [])
-                        if isinstance(image_urls, str):
-                            image_urls = [image_urls]  # Bitta stringni ro'yxatga o'girish
-                        elif not isinstance(image_urls, list):
-                            image_urls = []  # Noto'g'ri formatni bo'sh ro'yxatga almashtirish
-
                         final_questions[category].append(
                             {
                                 "category": category,
                                 "subject": question.get("subject", ""),
-                                "image_urls": image_urls,  # To'g'ri formatda saqlash
+                                "text": question.get("text", ""),
+                                "options": question.get("options", ""),
                                 "true_answer": question.get("true_answer", ""),
                                 "image": question.get("image", None),
                                 "order": global_order_counter,
@@ -399,7 +400,7 @@ class GenerateRandomQuestionsView(APIView):
                 try:
                     with transaction.atomic():
                         question_list = QuestionList.objects.create(
-                            list_id=list_id, question_class=question_class
+                        list_id=list_id, question_class=question_class
                         )
                         for category, questions in final_questions.items():
                             for question in questions:
@@ -407,7 +408,8 @@ class GenerateRandomQuestionsView(APIView):
                                     list=question_list,
                                     category=category,
                                     subject=question.get("subject", ""),
-                                    image_urls=question.get("image_urls", "{}"),  # To'g'ri formatda
+                                    text=question.get("text", ""),
+                                    options=question.get("options", ""),
                                     true_answer=question.get("true_answer", ""),
                                     order=question.get("order", 0),
                                 )
@@ -419,12 +421,11 @@ class GenerateRandomQuestionsView(APIView):
                     )
 
             return Response(
-                {"success": "Questions saved successfully"},
+                {"success": "Questions saved successfully", "data": final_lists},
                 status=status.HTTP_201_CREATED,
             )
 
         except Exception as e:
-            print(f"Unexpected error: {e}")
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
