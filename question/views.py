@@ -169,7 +169,8 @@ class HTMLFromZipView(APIView):
         s3_client = boto3.client(
             's3',
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            region_name=settings.AWS_REGION_NAME  # AWS mintaqasini qo'shing
         )
         bucket_name = settings.AWS_STORAGE_BUCKET_NAME
         s3_key = f"images/{uuid.uuid4().hex}.jpg"
@@ -179,18 +180,23 @@ class HTMLFromZipView(APIView):
                 temp_file.write(image_data)
                 temp_file.close()
 
+            # Faylni yuklash
                 s3_client.upload_file(
                     temp_file.name,
                     bucket_name,
                     s3_key,
                     ExtraArgs={"ACL": "public-read"}
                 )
-                os.unlink(temp_file.name)
+                os.unlink(temp_file.name)  # Vaqtinchalik faylni o'chirish
 
-            return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
+            uploaded_url = f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
+            print(f"Image {image_name} uploaded successfully to {uploaded_url}")
+            return uploaded_url
+
         except Exception as e:
             print(f"Error uploading {image_name}: {e}")
             raise
+
 
 
 
