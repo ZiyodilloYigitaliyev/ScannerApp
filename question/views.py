@@ -50,7 +50,7 @@ class HTMLFromZipView(APIView):
         return Response(result, status=200)
 
     def clean_img_tag(self, img_tag, new_src):
-        img_tag.attrs = {'src': new_src}
+        img_tag.attrs['src'] = new_src
     
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'html.parser')
@@ -71,9 +71,7 @@ class HTMLFromZipView(APIView):
             if img_src and img_src in image_urls:
                 self.clean_img_tag(img_tag, image_urls[img_src])
             else:
-                prev_sibling = img_tag.find_previous_sibling()
-                next_sibling = img_tag.find_next_sibling()
-                if (prev_sibling and prev_sibling.name == 'style') or (next_sibling and next_sibling.name == 'style'):
+                if img_tag.find_next_sibling('style') or img_tag.find_previous_sibling('style'):
                     continue
                 img_tag.decompose()
 
