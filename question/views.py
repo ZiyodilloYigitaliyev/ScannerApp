@@ -26,176 +26,109 @@ class HTMLFromZipView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
-        questions = Zip.objects.all()
+        questions = Zip.objects.values("text", "options", "true_answer", "category", "subject")
+        bucket_url = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/'
+
         result = []
-
         for question in questions:
-            question_data = {
-                "text": question.text,
-                "options": question.options,
-                "true_answer": question.true_answer,
-                "category": question.category,
-                "subject": question.subject
-            }
-
-            soup = BeautifulSoup(question.text, 'html.parser')
+            soup = BeautifulSoup(question["text"], 'html.parser')
             for img_tag in soup.find_all('img'):
                 img_src = img_tag.get('src')
                 if img_src and img_src.startswith('images/'):
-                    img_tag['src'] = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{img_src}'
-
-            question_data["text"] = str(soup)
-            result.append(question_data)
+                    img_tag['src'] = f'{bucket_url}{img_src}'
+            question["text"] = str(soup)
+            result.append(question)
 
         return Response(result, status=200)
-
-    def clean_img_tag(self, img_tag, new_src):
-        img_tag.attrs['src'] = new_src
-    
-    def process_html_task(self, html_file, images, category, subject):
-        soup = BeautifulSoup(html_file, 'html.parser')
-        questions = []
-        current_question = None
-
-        image_urls = {}
-        for image_name, image_data in images.items():
-            try:
-                uploaded_url = self.upload_image_to_s3(image_name, image_data)
-                image_urls[image_name] = uploaded_url
-            except Exception as e:
-                print(f"Error uploading {image_name}: {e}")
-
-        # <img> teglarini tozalash va yangilash
-        for img_tag in soup.find_all('img'):
-            img_src = img_tag.get('src')
-            if img_src and img_src in image_urls:
-                self.clean_img_tag(img_tag, image_urls[img_src])
-            else:
-                if img_tag.find_next_sibling('style') or img_tag.find_previous_sibling('style'):
-                    continue
-                img_tag.decompose()
-
-        # "KEY" bo‘limini topish va true_answerlarni ajratib olish
-        key_answers = []
-        for p_tag in soup.find_all('p'):
-            if "KEY" in p_tag.get_text(strip=True).upper():
-                key_text = p_tag.get_text(strip=True)
-                matches = re.findall(r'(\d+)-([A-D])', key_text)
-                key_answers = [match[1] for match in sorted(matches, key=lambda x: int(x[0]))]
-                break
-
-        # Savollarni ajratib olish
-        question_counter = 0
-        for p_tag in soup.find_all('p'):
-            text = p_tag.get_text(strip=True)
-            if not text:
-                continue
-
-            # Yangi savolni boshlash
-            if text[0].isdigit() and '.' in text:
-                if current_question:
-                    questions.append(current_question)
-                question_counter += 1
-                current_question = {
-                    "text": str(p_tag),
-                    "options": "",
-                    "true_answer": None,
-                    "category": category,
-                    "subject": subject
-                }
-
-            # Variantlarni qo‘shish
-            elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)
-
-        if current_question:
-            questions.append(current_question)
-
-        # "KEY"dagi javoblarni savollarga biriktirish
-        for i, question in enumerate(questions):
-            if i < len(key_answers):
-                question["true_answer"] = key_answers[i]
-
-        # Ma'lumotlarni saqlash
-        for question in questions:
-            Zip.objects.create(
-                text=question["text"],
-                options=question["options"],
-                true_answer=question["true_answer"],
-                category=question["category"],
-                subject=question["subject"]
-            )
-
-        return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
 
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
         if not zip_file:
             return Response({"error": "ZIP fayl topilmadi"}, status=400)
 
-        category = request.data.get('category')
-        subject = request.data.get('subject')
-
+        category, subject = request.data.get('category'), request.data.get('subject')
         if not category or not subject:
-            return Response(
-                {"error": "Category va Subject majburiy maydonlardir."},
-                status=400
-            )
+            return Response({"error": "Category va Subject majburiy maydonlardir."}, status=400)
 
         with zipfile.ZipFile(zip_file, 'r') as z:
-            html_file = None
-            images = {}
-
+            html_file, images = None, {}
             for file_name in z.namelist():
                 if file_name.endswith('.html'):
                     html_file = z.read(file_name).decode('utf-8')
                 elif file_name.startswith('images/'):
                     images[file_name] = z.read(file_name)
 
-            if not html_file:
-                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
+        if not html_file:
+            return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
 
-            questions = self.process_html_task(html_file, images, category, subject)
-
+        self.process_html_task(html_file, images, category, subject)
         return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
 
-    def upload_image_to_s3(self, image_name, image_data):
-            s3_client = boto3.client(
-            's3',
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
-        )
-            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+    def process_html_task(self, html_file, images, category, subject):
+        soup = BeautifulSoup(html_file, 'html.parser')
+        image_urls = self.upload_images_concurrently(images)
 
-            file_name, file_extension = os.path.splitext(image_name)
-            unique_name = file_name
-            s3_key = f"images/{unique_name}{file_extension}"
+        for img_tag in soup.find_all('img'):
+            img_src = img_tag.get('src')
+            if img_src in image_urls:
+                img_tag['src'] = image_urls[img_src]
+            else:
+                img_tag.decompose()
 
-            while self.check_file_exists_in_s3(s3_client, bucket_name, s3_key):
-                unique_name = f"{uuid.uuid4().hex}{file_extension}"
-                s3_key = f'images/{unique_name}'
+        key_answers = []
+        for p_tag in soup.find_all('p'):
+            text = p_tag.get_text(strip=True)
+            if "KEY" in text.upper():
+                key_answers = [match[1] for match in sorted(re.findall(r'(\d+)-([A-D])', text), key=lambda x: int(x[0]))]
+                break
 
-            with NamedTemporaryFile(delete=False) as temp_file:
-                temp_file.write(image_data)
-                temp_file.close()
-                s3_client.upload_file(temp_file.name, bucket_name, s3_key,  ExtraArgs={"ACL": "public-read"})
-                os.unlink(temp_file.name)
+        questions, current_question = [], None
+        question_counter = 0
+        for p_tag in soup.find_all('p'):
+            text = p_tag.get_text(strip=True)
+            if not text:
+                continue
 
-            return f'https://{bucket_name}.s3.amazonaws.com/{s3_key}'
+            if text[0].isdigit() and '.' in text:
+                if current_question:
+                    questions.append(current_question)
+                question_counter += 1
+                current_question = {"text": str(p_tag), "options": "", "true_answer": None, "category": category, "subject": subject}
+            elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
+                current_question["options"] += str(p_tag)
+
+        if current_question:
+            questions.append(current_question)
+
+        for i, question in enumerate(questions):
+            if i < len(key_answers):
+                question["true_answer"] = key_answers[i]
+
+        Zip.objects.bulk_create([Zip(**q) for q in questions])
+        return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
 
     def upload_images_concurrently(self, images):
         with ThreadPoolExecutor() as executor:
             futures = {executor.submit(self.upload_image_to_s3, img_name, img_data): img_name for img_name, img_data in images.items()}
-            return {future.result(): images[future] for future in futures}
-    def check_file_exists_in_s3(self, s3_client, bucket_name, s3_key):
-        try:
-            s3_client.head_object(Bucket=bucket_name, Key=s3_key)
-            return True
-        except s3_client.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                return False
-            else:
-                raise
+            return {img_name: future.result() for future, img_name in futures.items()}
+
+    def upload_image_to_s3(self, image_name, image_data):
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+        )
+        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+        file_name, file_extension = os.path.splitext(image_name)
+        unique_name = f"images/{uuid.uuid4().hex}{file_extension}"
+
+        with NamedTemporaryFile(delete=False) as temp_file:
+            temp_file.write(image_data)
+            temp_file.close()
+            s3_client.upload_file(temp_file.name, bucket_name, unique_name, ExtraArgs={"ACL": "public-read"})
+            os.unlink(temp_file.name)
+
+        return f'https://{bucket_name}.s3.amazonaws.com/{unique_name}'
 
 
 
