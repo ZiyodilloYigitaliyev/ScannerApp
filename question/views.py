@@ -65,7 +65,7 @@ class HTMLFromZipView(APIView):
         return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
 
     def process_html_task(self, html_file, images, category, subject):
-        soup = BeautifulSoup(html_file, 'html.parser')
+        soup = BeautifulSoup(html_file, 'lxml')
         image_urls = self.upload_images_concurrently(images)
 
         for img_tag in soup.find_all('img'):
@@ -84,18 +84,25 @@ class HTMLFromZipView(APIView):
 
         questions, current_question = [], None
         question_counter = 0
-        for p_tag in soup.find_all('p'):
-            text = p_tag.get_text(strip=True)
+
+        for tag in soup.find_all(['p', 'div']):
+            text = tag.get_text(strip=True)
             if not text:
                 continue
 
-            if text[0].isdigit() and '.' in text:
+            if re.match(r'^\d+\.', text):
                 if current_question:
                     questions.append(current_question)
                 question_counter += 1
-                current_question = {"text": str(p_tag), "options": "", "true_answer": None, "category": category, "subject": subject}
-            elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)
+                current_question = {
+                        "text": str(tag),
+                        "options": "",
+                        "true_answer": None,
+                        "category": category,
+                        "subject": subject
+                    }
+            elif re.match(r'^[A-D]\)', text) and current_question:
+                current_question["options"] += str(tag)
 
         if current_question:
             questions.append(current_question)
@@ -105,6 +112,7 @@ class HTMLFromZipView(APIView):
                 question["true_answer"] = key_answers[i]
 
         Zip.objects.bulk_create([Zip(**q) for q in questions])
+
         return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
 
     def upload_images_concurrently(self, images):
