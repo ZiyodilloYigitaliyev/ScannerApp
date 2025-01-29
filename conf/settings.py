@@ -178,7 +178,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 CORS_ORIGIN_WHITELIST = [
     'http://127.0.0.1:8000',
     'https://scan-app-9206bf041b06.herokuapp.com',
-    'http://localhost:3000',
+    'http://localhost:8080',
     
 ]
 
@@ -186,14 +186,14 @@ CORS_ORIGIN_WHITELIST = [
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
     'https://scan-app-9206bf041b06.herokuapp.com',
-    'http://localhost:3000',
+    'http://localhost:8080',
     
 ]
 
 CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:8000',
     'https://scan-app-9206bf041b06.herokuapp.com',
-    'http://localhost:3000',
+    'http://localhost:8080',
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
