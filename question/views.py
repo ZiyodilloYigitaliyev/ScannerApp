@@ -71,7 +71,11 @@ class HTMLFromZipView(APIView):
             if img_src and img_src in image_urls:
                 self.clean_img_tag(img_tag, image_urls[img_src])
             else:
-                img_tag.decompose()  # <img> tegi bucketga yuklanmagan bo'lsa, o'chiramiz
+                prev_sibling = img_tag.find_previous_sibling()
+                next_sibling = img_tag.find_next_sibling()
+                if (prev_sibling and prev_sibling.name == 'style') or (next_sibling and next_sibling.name == 'style'):
+                    continue
+                img_tag.decompose()
 
         # "KEY" bo‘limini topish va true_answerlarni ajratib olish
         key_answers = []
@@ -104,7 +108,7 @@ class HTMLFromZipView(APIView):
 
             # Variantlarni qo‘shish
             elif text.startswith(("A)", "B)", "C)", "D)")) and current_question:
-                current_question["options"] += str(p_tag)  # Variantlarni tozalash
+                current_question["options"] += str(p_tag)
 
         if current_question:
             questions.append(current_question)
