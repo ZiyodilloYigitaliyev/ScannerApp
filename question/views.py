@@ -178,7 +178,6 @@ class GenerateRandomQuestionsView(APIView):
             date = request.query_params.get('date', None)
             question_filter = request.query_params.get('question_filter', '').lower() == 'true'
             questions_only = request.query_params.get('questions_only', '').lower() == 'true'
-            subject = request.query_params.get('subject', None)  # subject bo'yicha parametrni olish
 
             # Filtrlash
             question_lists = QuestionList.objects.prefetch_related('questions').all()
@@ -201,9 +200,6 @@ class GenerateRandomQuestionsView(APIView):
                         {"error": "Invalid date format. Use YYYY-MM-DD."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-
-            if subject:  # Agar subject kiritilgan bo'lsa, filtrni qo'shish
-                question_lists = question_lists.filter(questions__subject=subject)
 
             # Paginationni olib tashlash va ma'lumotlarni to'g'ridan-to'g'ri tayyorlash
             response_data = []
@@ -264,7 +260,6 @@ class GenerateRandomQuestionsView(APIView):
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 
