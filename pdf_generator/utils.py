@@ -72,6 +72,7 @@ def generate_pdf(html_content):
         'margin-right': '10mm',
         'margin-left': '10mm',
         'enable-local-file-access': '',
+        'load-media-error-handling': 'ignore',
     }
     path_to_wkhtmltopdf = r"/app/bin/wkhtmltopdf"
     config = pdfkit.configuration(wkhtmltopdf=path_to_wkhtmltopdf)
