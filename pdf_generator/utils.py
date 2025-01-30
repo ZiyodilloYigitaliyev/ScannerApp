@@ -19,6 +19,7 @@ def clean_html_and_remove_numbers(html_text, order):
             text_element.replace_with(cleaned_text)
     return str(soup)
 
+
 def generate_html_from_questions(data):
     full_html = """<html><head><meta charset='UTF-8'><style>
     body { font-family: Arial, sans-serif; margin: 10mm; }
@@ -73,9 +74,10 @@ def generate_pdf(html_content):
         'margin-left': '10mm',
         'enable-local-file-access': '',
         'load-media-error-handling': 'ignore',
-        'javascript-delay': 10000,
+        'javascript-delay': 20000,
+        'allow': '/tmp',
         'no-stop-slow-scripts': '',
-        'disable-smart-shrinking': '',
+        'disable-smart-shrinking': 'true',
     }
     path_to_wkhtmltopdf = r"/app/bin/wkhtmltopdf"
     config = pdfkit.configuration(wkhtmltopdf=path_to_wkhtmltopdf)
