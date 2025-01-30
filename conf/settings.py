@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'main',
     'Bot',
+    'pdf_generator',
     'question',
     'storages',
     "corsheaders",
