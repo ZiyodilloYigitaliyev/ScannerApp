@@ -72,7 +72,7 @@ def generate_pdf(html_content):
         'margin-right': '10mm',
         'margin-left': '10mm',
     }
-    path_to_wkhtmltopdf = r"C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe"
+    path_to_wkhtmltopdf = r"/app/bin/wkhtmltopdf"
     config = pdfkit.configuration(wkhtmltopdf=path_to_wkhtmltopdf)
     pdf = pdfkit.from_string(html_content, False, options=options, configuration=config)
     response = HttpResponse(pdf, content_type='application/pdf')
