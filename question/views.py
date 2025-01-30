@@ -310,7 +310,7 @@ class GenerateRandomQuestionsView(APIView):
                                 "text": question.get("text", ""),
                                 "options": question.get("options", ""),
                                 "true_answer": question.get("true_answer", ""),
-                                "image": question.get("image", None),
+                                #"image": question.get("image", None),
                                 "order": global_order_counter,
                             }
                         )
