@@ -7,7 +7,6 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path("savol/", include("question.urls")),
-    path("", include("pdf_generator.urls")),
     path("upload/", ProcessImageView.as_view()),
     path("api/questions", GenerateRandomQuestionsView.as_view()),
     path('admin/', admin.site.urls),
