@@ -176,6 +176,7 @@ class GenerateRandomQuestionsView(APIView):
             list_id = request.query_params.get('list_id', None)
             question_class = request.query_params.get('question_class', None)
             date = request.query_params.get('date', None)
+            category = request.query_params.get('category', None)  # Yangi qo'shilgan qator
             question_filter = request.query_params.get('question_filter', '').lower() == 'true'
             questions_only = request.query_params.get('questions_only', '').lower() == 'true'
 
@@ -190,11 +191,8 @@ class GenerateRandomQuestionsView(APIView):
 
             if date:
                 try:
-                    naive_date_time = datetime.strptime(date, "%Y-%m-%d")
-                    date_time = make_aware(naive_date_time)
-                    question_lists = question_lists.filter(
-                        created_at__date=date_time.date()
-                    )
+                    filter_date = datetime.strptime(date, "%Y-%m-%d").date()
+                    question_lists = question_lists.filter(created_at__date=filter_date)
                 except ValueError:
                     return Response(
                         {"error": "Invalid date format. Use YYYY-MM-DD."},
@@ -204,14 +202,12 @@ class GenerateRandomQuestionsView(APIView):
             # Paginationni olib tashlash va ma'lumotlarni to'g'ridan-to'g'ri tayyorlash
             response_data = []
             for question_list in question_lists:
-                categories = list(
-                    question_list.questions.values_list(
-                        "category", flat=True
-                    ).distinct()
-                )
-                subjects = list(
-                    question_list.questions.values_list("subject", flat=True).distinct()
-                )
+                questions = question_list.questions.all()
+                if category:
+                    questions = questions.filter(category=category)
+
+                categories = list(questions.values_list("category", flat=True).distinct())
+                subjects = list(questions.values_list("subject", flat=True).distinct())
 
                 list_data = {
                     "list_id": question_list.list_id,
@@ -225,13 +221,11 @@ class GenerateRandomQuestionsView(APIView):
                             "id": q.id,
                             "category": q.category,
                             "subject": q.subject,
-                            "text": q.text,
-                            "options": q.options,
                             "true_answer": q.true_answer,
                             "list": q.list_id,
                             "order": idx,
                         }
-                        for idx, q in enumerate(question_list.questions.all(), start=1)
+                        for idx, q in enumerate(questions, start=1)
                     ]
                 elif questions_only:
                     list_data["categories"] = categories
@@ -244,24 +238,21 @@ class GenerateRandomQuestionsView(APIView):
                             "id": q.id,
                             "category": q.category,
                             "subject": q.subject,
-                            "text": q.text,
-                            "options": q.options,
                             "true_answer": q.true_answer,
                             "list": q.list_id,
                             "order": idx,
                         }
-                        for idx, q in enumerate(question_list.questions.all(), start=1)
+                        for idx, q in enumerate(questions, start=1)
                     ]
 
-                response_data.append(list_data)
+                # Faqat savollar yoki kategoriyalar mavjud bo'lsa qo'shish
+                if (questions.exists() or questions_only):
+                    response_data.append(list_data)
 
-            # To'g'ridan-to'g'ri javobni qaytarish
             return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-
 
 
     def post(self, request):
