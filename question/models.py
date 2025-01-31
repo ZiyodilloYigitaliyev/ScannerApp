@@ -23,7 +23,7 @@ class Question(models.Model):
 
 
 class Result(models.Model):
-    result_id = models.IntegerField(unique=True)  # `list_id` bilan bir xil bo‘lishi kerak
+    result_id = models.IntegerField()  # `list_id` bilan bir xil bo‘lishi kerak
     list = models.ForeignKey(QuestionList, related_name='results', null=True, blank=True, on_delete=models.SET_NULL)
     true_answer = models.TextField(null=True)
     order = models.IntegerField(default=0)
