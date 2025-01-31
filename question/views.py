@@ -19,7 +19,6 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
 import os
-from django.db.models import Prefetch
 logger = logging.getLogger(__name__)
 
 
@@ -169,7 +168,6 @@ class DeleteAllQuestionsView(APIView):
 
 
 
-
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
 
@@ -178,12 +176,12 @@ class GenerateRandomQuestionsView(APIView):
             list_id = request.query_params.get('list_id', None)
             question_class = request.query_params.get('question_class', None)
             date = request.query_params.get('date', None)
-            category = request.query_params.get('category', None)  # Yangi qo'shilgan qator
+            category = request.query_params.get('category', None)
             question_filter = request.query_params.get('question_filter', '').lower() == 'true'
             questions_only = request.query_params.get('questions_only', '').lower() == 'true'
 
             # Filtrlash
-            question_lists = QuestionList.objects.all()
+            question_lists = QuestionList.objects.prefetch_related('questions').all()
 
             if list_id:
                 question_lists = question_lists.filter(list_id=list_id)
@@ -201,72 +199,63 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            # Prefetch qilish (bazani optimallashtirish)
-            question_lists = question_lists.prefetch_related(
-                Prefetch('questions', queryset=Question.objects.order_by('order'))
-            )
-
-            # Paginationni olib tashlash va ma'lumotlarni to'g'ridan-to'g'ri tayyorlash
             response_data = []
             for question_list in question_lists:
-                questions = question_list.questions.all()
+                # Kategoriyalarni belgilangan tartibda olish
+                category_order = [
+                    "Majburiy_Fan_1",
+                    "Majburiy_Fan_2",
+                    "Majburiy_Fan_3",
+                    "Fan_1",
+                    "Fan_2"
+                ]
+                
+                # Savollarni kategoriyalar bo'yicha guruhlash
+                all_questions = question_list.questions.all()
                 if category:
-                    questions = questions.filter(category=category)
+                    all_questions = all_questions.filter(category=category)
 
-                # Agar list_id bo‘yicha so‘ralgan bo‘lsa, lekin topilmasa xato qaytaramiz
-                if list_id and not questions.exists():
-                    return Response({"error": "No questions found for this list_id."}, status=status.HTTP_404_NOT_FOUND)
+                grouped_questions = {}
+                for q in all_questions:
+                    grouped_questions.setdefault(q.category, []).append(q)
 
-                categories = list(questions.values_list("category", flat=True).distinct())
-                subjects = list(questions.values_list("subject", flat=True).distinct())
+                # Kategoriyalarni tartiblash va savollarni randomlashtirish
+                ordered_questions = []
+                for cat in category_order:
+                    if cat in grouped_questions:
+                        random.shuffle(grouped_questions[cat])  # Kategoriya ichida random
+                        ordered_questions.extend(grouped_questions[cat])
+
+                # Global orderni yaratish
+                final_questions = [
+                    {
+                        "id": q.id,
+                        "category": q.category,
+                        "subject": q.subject,
+                        "true_answer": q.true_answer,
+                        "list": q.list_id,
+                        "order": idx + 1  # 1 dan boshlab tartib
+                    }
+                    for idx, q in enumerate(ordered_questions)
+                ]
 
                 list_data = {
                     "list_id": question_list.list_id,
                     "question_class": question_list.question_class,
                     "created_at": question_list.created_at,
+                    "questions": final_questions,
+                    "categories": list(grouped_questions.keys())
                 }
 
-                if question_filter:
-                    list_data["questions"] = [
-                        {
-                            "id": q.id,
-                            "category": q.category,
-                            "subject": q.subject,
-                            "true_answer": q.true_answer,
-                            "list": q.list.list_id,
-                            "order": q.order,
-                        }
-                        for q in questions
-                    ]
-                elif questions_only:
-                    list_data["categories"] = categories
-                    list_data["subjects"] = subjects
-                else:
-                    list_data["categories"] = categories
-                    list_data["subjects"] = subjects
-                    list_data["questions"] = [
-                        {
-                            "id": q.id,
-                            "category": q.category,
-                            "subject": q.subject,
-                            "true_answer": q.true_answer,
-                            "list": q.list.list_id,
-                            "order": q.order,
-                        }
-                        for q in questions
-                    ]
-
-                # Faqat savollar yoki kategoriyalar mavjud bo'lsa qo'shish
-                if questions.exists() or questions_only:
-                    response_data.append(list_data)
+                if questions_only:
+                    del list_data["questions"]
+                    
+                response_data.append(list_data)
 
             return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
 
 
 
