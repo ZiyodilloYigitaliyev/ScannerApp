@@ -291,13 +291,13 @@ class GenerateRandomQuestionsView(APIView):
                 # Bazadan oxirgi `list_id` ni olish
                 last_question_list = QuestionList.objects.order_by("-list_id").first()
                 last_result = Result.objects.order_by("-result_id").first()
-                
+
                 # Eng katta list_id yoki result_id ni olish
                 last_id = max(
                     last_question_list.list_id if last_question_list else 100000,
                     last_result.result_id if last_result else 100000,
                 )
-                
+
                 # Yangi list_id aniqlash
                 list_id = last_id + 1
 
@@ -359,7 +359,7 @@ class GenerateRandomQuestionsView(APIView):
 
                             # Result yaratish
                             Result.objects.create(
-                                result_id=question_list.list_id,
+                                result_id=list_id,
                                 true_answer=true_answer,
                                 order=order,
                             )
