@@ -18,10 +18,18 @@ class Question(models.Model):
     true_answer = models.CharField(max_length=1, null=True, blank=True)
     order = models.IntegerField(default=0)
     
-    def __int__(self):
+    def __str__(self):
         return f"Result {self.order} for QuestionList {self.list.list_id}"
 
-    
+
+class Result(models.Model):
+    list_id = models.IntegerField(unique=True, default=100000)
+    true_answer = models.TextField(null=True)
+    order = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"Result {self.order} for QuestionList {self.list_id}"  
+
 class Zip(models.Model):
     text = models.TextField()
     options = models.TextField()
@@ -32,11 +40,3 @@ class Zip(models.Model):
 
     def __str__(self):
         return self.category
-
-class Result(models.Model):
-    list_id = models.IntegerField(unique=True, default=100000)
-    true_answer = models.TextField(null=True)
-    order = models.IntegerField(default=0)
-
-    def __str__(self):
-        return f"Result {self.order} for QuestionList {self.list.list_id}"  
