@@ -19,6 +19,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
 import os
+from django.db.models import Prefetch
 logger = logging.getLogger(__name__)
 
 
@@ -168,6 +169,7 @@ class DeleteAllQuestionsView(APIView):
 
 
 
+
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
 
@@ -181,7 +183,7 @@ class GenerateRandomQuestionsView(APIView):
             questions_only = request.query_params.get('questions_only', '').lower() == 'true'
 
             # Filtrlash
-            question_lists = QuestionList.objects.prefetch_related('questions').all()
+            question_lists = QuestionList.objects.all()
 
             if list_id:
                 question_lists = question_lists.filter(list_id=list_id)
@@ -199,12 +201,21 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
+            # Prefetch qilish (bazani optimallashtirish)
+            question_lists = question_lists.prefetch_related(
+                Prefetch('questions', queryset=Question.objects.order_by('order'))
+            )
+
             # Paginationni olib tashlash va ma'lumotlarni to'g'ridan-to'g'ri tayyorlash
             response_data = []
             for question_list in question_lists:
                 questions = question_list.questions.all()
                 if category:
                     questions = questions.filter(category=category)
+
+                # Agar list_id bo‘yicha so‘ralgan bo‘lsa, lekin topilmasa xato qaytaramiz
+                if list_id and not questions.exists():
+                    return Response({"error": "No questions found for this list_id."}, status=status.HTTP_404_NOT_FOUND)
 
                 categories = list(questions.values_list("category", flat=True).distinct())
                 subjects = list(questions.values_list("subject", flat=True).distinct())
@@ -222,10 +233,10 @@ class GenerateRandomQuestionsView(APIView):
                             "category": q.category,
                             "subject": q.subject,
                             "true_answer": q.true_answer,
-                            "list": q.list_id,
-                            "order": idx,
+                            "list": q.list.list_id,
+                            "order": q.order,
                         }
-                        for idx, q in enumerate(questions, start=1)
+                        for q in questions
                     ]
                 elif questions_only:
                     list_data["categories"] = categories
@@ -239,20 +250,21 @@ class GenerateRandomQuestionsView(APIView):
                             "category": q.category,
                             "subject": q.subject,
                             "true_answer": q.true_answer,
-                            "list": q.list_id,
-                            "order": idx,
+                            "list": q.list.list_id,
+                            "order": q.order,
                         }
-                        for idx, q in enumerate(questions, start=1)
+                        for q in questions
                     ]
 
                 # Faqat savollar yoki kategoriyalar mavjud bo'lsa qo'shish
-                if (questions.exists() or questions_only):
+                if questions.exists() or questions_only:
                     response_data.append(list_data)
 
             return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 
