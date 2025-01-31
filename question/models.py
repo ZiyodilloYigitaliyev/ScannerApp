@@ -23,12 +23,12 @@ class Question(models.Model):
 
 
 class Result(models.Model):
-    result_id = models.IntegerField(unique=True, default=100000)
+    result_id = models.IntegerField(unique=True)
     true_answer = models.TextField(null=True)
     order = models.IntegerField(default=0)
 
     def __str__(self):
-        return f"Result {self.order} for QuestionList {self.list_id}"  
+        return f"Result {self.order} for QuestionList {self.result_id}"  
 
 class Zip(models.Model):
     text = models.TextField()
