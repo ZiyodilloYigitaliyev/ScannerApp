@@ -357,11 +357,11 @@ class GenerateRandomQuestionsView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         
-        @staticmethod
-        def get_random_items(source_list, count):
-            if not source_list:
-                return []
-            count = min(count, len(source_list))
-            return random.sample(source_list, count)
+    @staticmethod
+    def get_random_items(source_list, count):
+        if not source_list:
+            return []
+        count = min(count, len(source_list))
+        return random.sample(source_list, count)
 
 
