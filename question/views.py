@@ -231,6 +231,8 @@ class GenerateRandomQuestionsView(APIView):
                     {
                         "id": q.id,
                         "category": q.category,
+                        "text": q.text,
+                        "options": q.options,
                         "subject": q.subject,
                         "true_answer": q.true_answer,
                         "list": q.list_id,
