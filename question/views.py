@@ -377,11 +377,11 @@ class GenerateRandomQuestionsView(APIView):
         try:
             with transaction.atomic():
                 # O'chirilishi kerak bo'lgan modelni tanlang
-                Question.objects.all().delete()
+                QuestionList.objects.all().delete()
 
             return Response(
                 {"success": "All data from ModelName has been deleted successfully."},
-                status=status.HTTP_200_OK,
+                status=status.HTTP_204_OK,
             )
         except Exception as e:
             return Response(

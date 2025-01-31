@@ -19,7 +19,7 @@ class Question(models.Model):
     order = models.IntegerField(default=0)
     
     def __int__(self):
-        return self.question_id
+        return f"Result {self.order} for QuestionList {self.list.list_id}"
 
     
 class Zip(models.Model):
@@ -34,9 +34,9 @@ class Zip(models.Model):
         return self.category
 
 class Result(models.Model):
-    list = models.ForeignKey(QuestionList, on_delete=models.CASCADE, related_name="results")
+    list_id = models.IntegerField(unique=True, default=100000)
     true_answer = models.TextField()
-    order = models.PositiveIntegerField()
+    order = models.IntegerField(default=0)
 
     def __str__(self):
-        return f"Result {self.id} for QuestionList {self.list.list_id}"
+        return f"Result {self.order} for QuestionList {self.list.list_id}"
