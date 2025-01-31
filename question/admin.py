@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import QuestionList, Question, Zip, Result
+from .models import QuestionList, Question, Zip
 
 class QuestionListAdmin(admin.ModelAdmin):
     list_display = ('id', 'list_id')  # Admin panelda ko'rinadigan ustunlar
@@ -25,6 +25,6 @@ class QuestionAdmin(admin.ModelAdmin):
     delete_selected_data.short_description = 'Tanlangan barcha malumot kodlarni o‘chirish'
 
 # Ro'yxatdan o'tkazish
-admin.site.register([Zip,Result])
+admin.site.register(Zip)
 admin.site.register(QuestionList, QuestionListAdmin)
 admin.site.register(Question, QuestionAdmin)
