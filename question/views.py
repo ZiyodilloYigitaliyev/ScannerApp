@@ -372,7 +372,7 @@ class GenerateRandomQuestionsView(APIView):
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+            
     def delete(self, request, *args, **kwargs):
         try:
             with transaction.atomic():
