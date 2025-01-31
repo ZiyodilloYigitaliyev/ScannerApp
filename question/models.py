@@ -32,3 +32,11 @@ class Zip(models.Model):
 
     def __str__(self):
         return self.category
+
+class Result(models.Model):
+    list = models.ForeignKey(QuestionList, on_delete=models.CASCADE, related_name="results")
+    true_answer = models.TextField()
+    order = models.PositiveIntegerField()
+
+    def __str__(self):
+        return f"Result {self.id} for QuestionList {self.list.list_id}"

@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import QuestionList, Question, Zip
+from .models import QuestionList, Question, Zip, Result
 from .serializers import ZipSerializer
 from rest_framework.permissions import AllowAny
 import random
@@ -19,6 +19,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
 import os
+
 logger = logging.getLogger(__name__)
 
 
@@ -326,16 +327,34 @@ class GenerateRandomQuestionsView(APIView):
                         question_list = QuestionList.objects.create(
                             list_id=list_id, question_class=question_class
                         )
+
                         for question in final_questions:
+                            # Ma'lumotlarni olish
+                            category = question.get("category", "")
+                            subject = question.get("subject", "")
+                            text = question.get("text", "")
+                            options = question.get("options", "")
+                            true_answer = question.get("true_answer", "")
+                            order = question.get("order")
+
+                            # Question yaratish
                             Question.objects.create(
                                 list=question_list,
-                                category=question.get("category", ""),
-                                subject=question.get("subject", ""),
-                                text=question.get("text", ""),
-                                options=question.get("options", ""),
-                                true_answer=question.get("true_answer", ""),
-                                order=question.get("order"),
+                                category=category,
+                                subject=subject,
+                                text=text,
+                                options=options,
+                                true_answer=true_answer,
+                                order=order,
                             )
+
+                            # Result yaratish
+                            Result.objects.create(
+                                list=question_list,
+                                true_answer=true_answer,
+                                order=order,
+                            )
+
                 except Exception as e:
                     print(f"Error during database save: {e}")
                     return Response(
@@ -344,13 +363,29 @@ class GenerateRandomQuestionsView(APIView):
                     )
 
             return Response(
-                {"success": "Questions saved successfully", "data": final_lists},
+                {"success": "Questions saved successfully", "data": final_questions},
                 status=status.HTTP_201_CREATED,
             )
 
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+    def delete(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                # O'chirilishi kerak bo'lgan modelni tanlang
+                Question.objects.all().delete()
+
+            return Response(
+                {"success": "All data from ModelName has been deleted successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"An error occurred during deletion: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
