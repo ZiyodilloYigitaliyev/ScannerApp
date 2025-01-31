@@ -35,7 +35,7 @@ class Zip(models.Model):
 
 class Result(models.Model):
     list = models.ForeignKey(QuestionList, on_delete=models.CASCADE, related_name="results")
-    true_answer = models.TextField()
+    true_answer = models.TextField(null=True, blank=True)
     order = models.PositiveIntegerField()
 
     def __str__(self):
