@@ -39,4 +39,4 @@ class Result(models.Model):
     order = models.IntegerField(default=0)
 
     def __str__(self):
-        return f"Result {self.order} for QuestionList {self.list.list_id}"
+        return f"Result {self.order} for QuestionList {self.list.list_id}"  
