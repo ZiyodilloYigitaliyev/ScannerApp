@@ -350,7 +350,7 @@ class GenerateRandomQuestionsView(APIView):
 
                             # Result yaratish
                             Result.objects.create(
-                                list=list_id,
+                                list_id=question_list.list_id,
                                 true_answer=true_answer,
                                 order=order,
                             )
