@@ -19,6 +19,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
 import os
+from django.db import IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -357,12 +358,18 @@ class GenerateRandomQuestionsView(APIView):
                                 order=order,
                             )
 
-                            # Result yaratish
-                            Result.objects.create(
-                                result_id=list_id,
-                                true_answer=true_answer,
-                                order=order,
+                           # Result yaratish yoki yangilash
+                            result, created = Result.objects.update_or_create(
+                                result_id=question_list.list_id,
+                                defaults={'true_answer': true_answer, 'order': order}
                             )
+
+                            # Agar `created` True bo'lsa, yangi yozuv yaratildi
+                            if created:
+                                print(f"Result with result_id {question_list.list_id} was created.")
+                            else:
+                                print(f"Result with result_id {question_list.list_id} was updated.")
+
 
                 except Exception as e:
                     print(f"Error during database save: {e}")
