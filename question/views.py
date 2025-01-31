@@ -381,7 +381,7 @@ class GenerateRandomQuestionsView(APIView):
 
             return Response(
                 {"success": "All data from ModelName has been deleted successfully."},
-                status=status.HTTP_200_OK,
+                status=status.HTTP_204_OK,
             )
         except Exception as e:
             return Response(
