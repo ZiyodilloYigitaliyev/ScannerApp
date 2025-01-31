@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import QuestionList, Question, Zip, Result
+from .models import QuestionList, Question, Zip
 from .serializers import ZipSerializer
 from rest_framework.permissions import AllowAny
 import random
@@ -19,8 +19,6 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
 import os
-from django.db import IntegrityError
-
 logger = logging.getLogger(__name__)
 
 
@@ -290,17 +288,8 @@ class GenerateRandomQuestionsView(APIView):
 
             for _ in range(additional_value):
                 # Bazadan oxirgi `list_id` ni olish
-                last_question_list = QuestionList.objects.order_by("-list_id").first()
-                last_result = Result.objects.order_by("-result_id").first()
-
-                # Eng katta list_id yoki result_id ni olish
-                last_id = max(
-                    last_question_list.list_id if last_question_list else 100000,
-                    last_result.result_id if last_result else 100000,
-                )
-
-                # Yangi list_id aniqlash
-                list_id = last_id + 1
+                last_list = QuestionList.objects.order_by("-list_id").first()
+                list_id = (last_list.list_id + 1) if last_list else 100000
 
                 final_questions = []
 
@@ -337,40 +326,16 @@ class GenerateRandomQuestionsView(APIView):
                         question_list = QuestionList.objects.create(
                             list_id=list_id, question_class=question_class
                         )
-
                         for question in final_questions:
-                            # Ma'lumotlarni olish
-                            category = question.get("category", "")
-                            subject = question.get("subject", "")
-                            text = question.get("text", "")
-                            options = question.get("options", "")
-                            true_answer = question.get("true_answer", "")
-                            order = question.get("order")
-
-                            # Question yaratish
                             Question.objects.create(
                                 list=question_list,
-                                category=category,
-                                subject=subject,
-                                text=text,
-                                options=options,
-                                true_answer=true_answer,
-                                order=order,
+                                category=question.get("category", ""),
+                                subject=question.get("subject", ""),
+                                text=question.get("text", ""),
+                                options=question.get("options", ""),
+                                true_answer=question.get("true_answer", ""),
+                                order=question.get("order"),
                             )
-
-                           # Result yaratish yoki yangilash
-                            result, created = Result.objects.update_or_create(
-                                result_id=question_list.list_id,
-                                defaults={'true_answer': true_answer, 'order': order}
-                            )
-
-                            # Agar `created` True bo'lsa, yangi yozuv yaratildi
-                            if created:
-                                print(f"Result with result_id {question_list.list_id} was created.")
-                            else:
-                                print(f"Result with result_id {question_list.list_id} was updated.")
-
-
                 except Exception as e:
                     print(f"Error during database save: {e}")
                     return Response(
@@ -379,7 +344,7 @@ class GenerateRandomQuestionsView(APIView):
                     )
 
             return Response(
-                {"success": "Questions saved successfully", "data": final_questions},
+                {"success": "Questions saved successfully", "data": final_lists},
                 status=status.HTTP_201_CREATED,
             )
 
@@ -388,7 +353,7 @@ class GenerateRandomQuestionsView(APIView):
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-            
+        
     def delete(self, request, *args, **kwargs):
         try:
             with transaction.atomic():
@@ -404,7 +369,7 @@ class GenerateRandomQuestionsView(APIView):
                 {"error": f"An error occurred during deletion: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
+    
     @staticmethod
     def get_random_items(source_list, count):
         """ Har bir kategoriya uchun random savollar olish """

@@ -2,11 +2,11 @@ from django.db import models
 from django.contrib.postgres.fields import ArrayField
 
 class QuestionList(models.Model):
-    list_id = models.IntegerField(unique=True, null=True)
+    list_id = models.IntegerField(unique=True, default=100000)
     question_class = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     
-    def __int__(self):
+    def int(self):
         return self.list_id
     
 class Question(models.Model):
@@ -18,17 +18,10 @@ class Question(models.Model):
     true_answer = models.CharField(max_length=1, null=True, blank=True)
     order = models.IntegerField(default=0)
     
-    def __str__(self):
-        return f"Result {self.order} for QuestionList {self.list.list_id}"
+    def int(self):
+        return self.question_id
 
-
-class Result(models.Model):
-    result_id = models.IntegerField()  # `list_id` bilan bir xil bo‘lishi kerak
-    list = models.ForeignKey(QuestionList, related_name='results', null=True, blank=True, on_delete=models.SET_NULL)
-    true_answer = models.TextField(null=True)
-    order = models.IntegerField(default=0)
-  
-
+    
 class Zip(models.Model):
     text = models.TextField()
     options = models.TextField()
@@ -37,5 +30,5 @@ class Zip(models.Model):
     subject = models.CharField(max_length=255, null=True, blank=True)
     date = models.DateField(auto_now_add=True)
 
-    def __str__(self):
+    def str(self):
         return self.category
