@@ -257,6 +257,7 @@ class GenerateRandomQuestionsView(APIView):
 
 
 
+
     def post(self, request):
             try:
                 # Ma'lumotni olish
@@ -264,45 +265,36 @@ class GenerateRandomQuestionsView(APIView):
                     request_data = request.data[0]
                 else:
                     request_data = request.data
-        
+
                 questions_num = request_data.get("num", {})
                 questions_data = request_data.get("data", {})
                 additional_value = questions_num.get("additional_value", 0)
                 question_class = questions_num.get("class", "")
-        
-                majburiy_fan_1 = questions_data.get("Majburiy_Fan_1", [])
-                majburiy_fan_2 = questions_data.get("Majburiy_Fan_2", [])
-                majburiy_fan_3 = questions_data.get("Majburiy_Fan_3", [])
-                fan_1 = questions_data.get("Fan_1", [])
-                fan_2 = questions_data.get("Fan_2", [])
-        
-                final_lists = []
-        
-                # **Kategoriya tuzilishini oldindan yaratamiz**
+
+                # Kategoriyalarni olish
                 category_structure = {
-                    "Majburiy_Fan_1": majburiy_fan_1,
-                    "Majburiy_Fan_2": majburiy_fan_2,
-                    "Majburiy_Fan_3": majburiy_fan_3,
-                    "Fan_1": fan_1,
-                    "Fan_2": fan_2,
+                    "Majburiy_Fan_1": questions_data.get("Majburiy_Fan_1", []),
+                    "Majburiy_Fan_2": questions_data.get("Majburiy_Fan_2", []),
+                    "Majburiy_Fan_3": questions_data.get("Majburiy_Fan_3", []),
+                    "Fan_1": questions_data.get("Fan_1", []),
+                    "Fan_2": questions_data.get("Fan_2", []),
                 }
-        
+
+                final_lists = []
+
                 for _ in range(additional_value):
-                    # Har bir list_id uchun yangi random savollarni olish
-                    new_list = {
-                        category: self.get_random_items(questions, 10 if "Majburiy" in category else 30)
-                        for category, questions in category_structure.items()
-                    }
-        
                     # Bazadan oxirgi `list_id` ni olish
                     last_list = QuestionList.objects.order_by("-list_id").first()
                     list_id = (last_list.list_id + 1) if last_list else 100000
-        
-                    final_questions = {category: [] for category in new_list.keys()}
+
+                    final_questions = {category: [] for category in category_structure.keys()}
                     global_order_counter = 1
-        
-                    for category, questions in new_list.items():
-                        for question in questions:
+
+                    # Har bir kategoriya uchun random savollarni olish
+                    for category, questions in category_structure.items():
+                        random_questions = self.get_random_items(questions, 10 if "Majburiy" in category else 30)
+
+                        for question in random_questions:
                             final_questions[category].append(
                                 {
                                     "category": category,
@@ -314,7 +306,7 @@ class GenerateRandomQuestionsView(APIView):
                                 }
                             )
                             global_order_counter += 1
-        
+
                     final_lists.append(
                         {
                             "list_id": list_id,
@@ -322,7 +314,8 @@ class GenerateRandomQuestionsView(APIView):
                             "question_class": question_class,
                         }
                     )
-        
+
+                    # Bazaga saqlash
                     try:
                         with transaction.atomic():
                             question_list = QuestionList.objects.create(
@@ -345,23 +338,24 @@ class GenerateRandomQuestionsView(APIView):
                             {"error": "Database save error"},
                             status=status.HTTP_400_BAD_REQUEST,
                         )
-        
+
                 return Response(
                     {"success": "Questions saved successfully", "data": final_lists},
                     status=status.HTTP_201_CREATED,
                 )
-        
+
             except Exception as e:
                 return Response(
                     {"error": f"An error occurred: {str(e)}"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-        
+
     @staticmethod
     def get_random_items(source_list, count):
         if not source_list:
             return []
         count = min(count, len(source_list))
         return random.sample(source_list, count)
+
 
 
