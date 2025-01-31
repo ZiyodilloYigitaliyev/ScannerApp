@@ -35,7 +35,7 @@ class Zip(models.Model):
 
 class Result(models.Model):
     list_id = models.IntegerField(unique=True, default=100000)
-    true_answer = models.TextField()
+    true_answer = models.TextField(null=True)
     order = models.IntegerField(default=0)
 
     def __str__(self):
