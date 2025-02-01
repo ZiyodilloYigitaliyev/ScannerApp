@@ -172,7 +172,7 @@ class DeleteAllQuestionsView(APIView):
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
     
-    EXTERNAL_POST_URL = "https://scan-app-9206bf041b06.herokuapp.com/savol/backup/"
+    EXTERNAL_POST_URL = "https://backup-questions-e95023d8185c.herokuapp.com/backup"
 
     def get(self, request):
         try:
