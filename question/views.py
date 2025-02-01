@@ -171,22 +171,6 @@ class DeleteAllQuestionsView(APIView):
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
 
-    EXTERNAL_URL = "https://backup-questions-e95023d8185c.herokuapp.com/backup"  # URL'ni o'zgartiring
-
-    def get_latest_list_id_from_external_source(self):
-        """Tashqi URL'dan oxirgi list_id ni olib, 1 qo'shib yangi list_id yaratadi"""
-        try:
-            response = requests.get(self.EXTERNAL_URL, timeout=5)
-            response.raise_for_status()
-
-            data = response.json()
-            latest_list_id = data.get("latest_list_id", 99999)
-
-            return latest_list_id + 1
-        except requests.RequestException as e:
-            print(f"External API error: {e}")
-            return 100000
-
     def get(self, request):
         try:
             list_id = request.query_params.get('list_id', None)
