@@ -440,37 +440,41 @@ class BackupDataView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            data = request.data
+            incoming_data = request.data
 
-            # Kelgan ma'lumot ro'yxat (list) shaklida bo'lishi kerak
-            if not isinstance(data, list):
+            # Agar ma'lumot yagona obyekt sifatida kelsa, uni ro'yxatga o'ramiz
+            if isinstance(incoming_data, dict):
+                data_list = [incoming_data]
+            elif isinstance(incoming_data, list):
+                data_list = incoming_data
+            else:
                 return Response(
-                    {"error": "Ma'lumotlar ro'yxati (list) shaklida yuborilishi kerak."},
+                    {"error": "Ma'lumot dictionary yoki ro'yxat shaklida yuborilishi kerak."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
             backups_saved = []
             with transaction.atomic():
-                for item in data:
+                for item in data_list:
+                    # Ma'lumot maydonlarini olish (agar mavjud bo'lmasa, keyinchalik avtomatik qiymat beramiz)
                     orig_list_id = item.get("list_id")
                     orig_order = item.get("order")
-                    category = item.get("category")
-                    subject = item.get("subject")
-                    text = item.get("text")
-                    options = item.get("options")
-                    true_answer = item.get("true_answer")
+                    category   = item.get("category", "")
+                    subject    = item.get("subject", "")
+                    text       = item.get("text", "")
+                    options    = item.get("options", "")
+                    true_answer= item.get("true_answer", "")
 
-                    # Zarur maydonlarni tekshirish
-                    if orig_list_id is None or orig_order is None:
-                        return Response(
-                            {"error": "list_id va order maydonlari to'liq ko'rsatilishi shart."},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
+                    # Agar list_id yoki order kiritilmagan bo'lsa, ularni bazadagi eng katta qiymatdan birga oshirib aniqlaymiz
+                    if orig_list_id is None:
+                        list_id = self._get_next_value("list_id")
+                    else:
+                        list_id = self._get_unique_value("list_id", orig_list_id)
 
-                    # Agar kiritilgan list_id yoki order bazada mavjud bo'lsa,
-                    # ularni bazadagi eng katta qiymatdan 1 qo'shib noyoblashtiramiz.
-                    list_id = self._get_unique_value("list_id", orig_list_id)
-                    order = self._get_unique_value("order", orig_order)
+                    if orig_order is None:
+                        order = self._get_next_value("order")
+                    else:
+                        order = self._get_unique_value("order", orig_order)
 
                     # Yangi yozuvni yaratamiz
                     backup_obj = Backup.objects.create(
@@ -489,7 +493,7 @@ class BackupDataView(APIView):
                     })
 
             return Response(
-                {"success": "Backup ma'lumotlari muvaffaqiyatli saqlandi.", "data": backups_saved},
+                {"success": "Backup Malumotlari Muvaffaqiyatli Saqlandi"},
                 status=status.HTTP_201_CREATED
             )
 
@@ -507,6 +511,10 @@ class BackupDataView(APIView):
         else:
             return current_value
 
+    def _get_next_value(self, field_name):
+        max_value = Backup.objects.aggregate(max_val=Max(field_name))['max_val']
+        return (max_value + 1) if max_value is not None else 1
+
     def auto_post_backup_data(self, external_url):
         try:
             backups = Backup.objects.all()
@@ -522,7 +530,6 @@ class BackupDataView(APIView):
                     "order": backup.order,
                 })
 
-            # Yuborilayotgan payload aniq ro'yxat shaklida
             headers = {'Content-Type': 'application/json'}
             response = requests.post(external_url, json=payload, headers=headers)
             response.raise_for_status()
