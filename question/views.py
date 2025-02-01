@@ -22,7 +22,6 @@ from tempfile import NamedTemporaryFile
 import os
 logger = logging.getLogger(__name__)
 
-
 class HTMLFromZipView(APIView):
     permission_classes = [AllowAny]
 
@@ -171,9 +170,22 @@ class DeleteAllQuestionsView(APIView):
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
-    
-    # Backup ilovasining URL manzili (Question va Backup ilovalari alohida)
-    EXTERNAL_POST_URL = "https://backup-questions-e95023d8185c.herokuapp.com/backup"
+
+    EXTERNAL_URL = "https://backup-questions-e95023d8185c.herokuapp.com/backup"  # URL'ni o'zgartiring
+
+    def get_latest_list_id_from_external_source(self):
+        """Tashqi URL'dan oxirgi list_id ni olib, 1 qo'shib yangi list_id yaratadi"""
+        try:
+            response = requests.get(self.EXTERNAL_URL, timeout=5)
+            response.raise_for_status()
+
+            data = response.json()
+            latest_list_id = data.get("latest_list_id", 100000)
+
+            return latest_list_id + 1
+        except requests.RequestException as e:
+            print(f"External API error: {e}")
+            return 100000
 
     def get(self, request):
         try:
@@ -383,37 +395,5 @@ class GenerateRandomQuestionsView(APIView):
         count = min(count, len(source_list))
         return random.sample(source_list, count)
     
-    def auto_post_backup_data(self, external_url=None):
-        # Agar tashqi URL berilmasa, sinf atributidan foydalanamiz.
-        if external_url is None:
-            external_url = self.EXTERNAL_POST_URL
-        try:
-            # Misol uchun, backup uchun payloadni barcha Question obyektlaridan yaratamiz.
-            # Agar siz faqat yangi yaratilgan savollarni yubormoqchi bo'lsangiz, ularni alohida tanlab olish lozim.
-            backups = Question.objects.all()
-            backups_list = []
-            for backup in backups:
-                backups_list.append({
-                    "list_id": backup.list_id,
-                    "category": backup.category,
-                    "subject": backup.subject,
-                    "text": backup.text,
-                    "options": backup.options,
-                    "true_answer": backup.true_answer,
-                    "order": backup.order,
-                })
-
-            # Kutilayotgan format: {"data": [...]}
-            payload = {"data": backups_list}
-
-            # Yuborilayotgan payloadni log orqali ko'rish:
-            print("Auto post payload:", payload)
-
-            headers = {'Content-Type': 'application/json'}
-            response = requests.post(external_url, json=payload, headers=headers)
-            response.raise_for_status()  # Agar xatolik yuz bersa, exception ko'tariladi
-            print("Auto post successful. Response status:", response.status_code)
-        except Exception as e:
-            print("Failed to auto-post data to external url:", e)
 
 
