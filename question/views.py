@@ -442,6 +442,7 @@ class BackupDataView(APIView):
         try:
             data = request.data
 
+            # Kelgan ma'lumot ro'yxat (list) shaklida bo'lishi kerak
             if not isinstance(data, list):
                 return Response(
                     {"error": "Ma'lumotlar ro'yxati (list) shaklida yuborilishi kerak."},
@@ -466,6 +467,8 @@ class BackupDataView(APIView):
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
+                    # Agar kiritilgan list_id yoki order bazada mavjud bo'lsa,
+                    # ularni bazadagi eng katta qiymatdan 1 qo'shib noyoblashtiramiz.
                     list_id = self._get_unique_value("list_id", orig_list_id)
                     order = self._get_unique_value("order", orig_order)
 
@@ -503,3 +506,26 @@ class BackupDataView(APIView):
             return max_value + 1
         else:
             return current_value
+
+    def auto_post_backup_data(self, external_url):
+        try:
+            backups = Backup.objects.all()
+            payload = []
+            for backup in backups:
+                payload.append({
+                    "list_id": backup.list_id,
+                    "category": backup.category,
+                    "subject": backup.subject,
+                    "text": backup.text,
+                    "options": backup.options,
+                    "true_answer": backup.true_answer,
+                    "order": backup.order,
+                })
+
+            # Yuborilayotgan payload aniq ro'yxat shaklida
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(external_url, json=payload, headers=headers)
+            response.raise_for_status()
+            print("Auto post successful. Response status:", response.status_code)
+        except Exception as e:
+            print("Failed to auto-post data to external url:", e)
