@@ -380,34 +380,32 @@ class GenerateRandomQuestionsView(APIView):
         count = min(count, len(source_list))
         return random.sample(source_list, count)
     
-    def _auto_post_saved_data(self):
+    def auto_post_backup_data(self, external_url):
         try:
-            # Barcha QuestionList va ular bilan bog'liq savollarni olish
-            question_lists = QuestionList.objects.prefetch_related('questions').all()
-            payload = []
-
-            for question_list in question_lists:
-                questions_data = []
-                for q in question_list.questions.all():
-                    questions_data.append({
-                        "id": q.id,
-                        "category": q.category,
-                        "subject": q.subject,
-                        "text": q.text,
-                        "options": q.options,
-                        "true_answer": q.true_answer,
-                        "order": q.order,
-                    })
-                payload.append({
-                    "list_id": question_list.list_id,
-                    "question_class": question_list.question_class,
-                    "created_at": question_list.created_at.isoformat(),
-                    "questions": questions_data,
+            backups = Question.objects.all()
+            backups_list = []
+            for backup in backups:
+                backups_list.append({
+                    "list_id": backup.list_id,
+                    "category": backup.category,
+                    "subject": backup.subject,
+                    "text": backup.text,
+                    "options": backup.options,
+                    "true_answer": backup.true_answer,
+                    "order": backup.order,
                 })
 
-            response = requests.post(self.EXTERNAL_POST_URL, json=payload)
-            response.raise_for_status()  # Xatolik yuz bersa exception ko'tariladi
+            # Kutilayotgan format: {"data": []}
+            payload = {"data": backups_list}
+
+            # Yuborilayotgan payloadni log orqali ko'rish:
+            print("Auto post payload:", payload)
+
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(external_url, json=payload, headers=headers)
+            response.raise_for_status()  # Agar xatolik yuz bersa, exception ko'tariladi
             print("Auto post successful. Response status:", response.status_code)
         except Exception as e:
             print("Failed to auto-post data to external url:", e)
+
 
