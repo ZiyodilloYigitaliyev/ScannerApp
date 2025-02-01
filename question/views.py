@@ -180,7 +180,7 @@ class GenerateRandomQuestionsView(APIView):
             response.raise_for_status()
 
             data = response.json()
-            latest_list_id = data.get("latest_list_id", 100000)
+            latest_list_id = data.get("latest_list_id", 100001)
 
             return latest_list_id + 1
         except requests.RequestException as e:
