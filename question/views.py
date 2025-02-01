@@ -343,9 +343,6 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            # Barcha ma'lumotlar muvaffaqiyatli saqlandi, endi avtomatik tashqi URLga post qilamiz.
-            self.auto_post_backup_data()  # external_url parametri ichida sinf atributidan foydalaniladi
-
             return Response(
                 {"success": "Questions saved successfully", "data": final_lists},
                 status=status.HTTP_201_CREATED,
