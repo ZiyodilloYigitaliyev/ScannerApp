@@ -172,6 +172,7 @@ class DeleteAllQuestionsView(APIView):
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
     
+    # Backup ilovasining URL manzili (Question va Backup ilovalari alohida)
     EXTERNAL_POST_URL = "https://backup-questions-e95023d8185c.herokuapp.com/backup"
 
     def get(self, request):
@@ -260,7 +261,10 @@ class GenerateRandomQuestionsView(APIView):
             return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
-            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def post(self, request):
         try:
@@ -309,13 +313,13 @@ class GenerateRandomQuestionsView(APIView):
                             "text": q.get("text", ""),
                             "options": q.get("options", ""),
                             "true_answer": q.get("true_answer", ""),
-                            "order": idx + 1,  # **Kategoriya ichida tartibni saqlash**
+                            "order": idx + 1,  # Kategoriya ichida tartibni saqlash
                         })
 
                 final_lists.append(
                     {
                         "list_id": list_id,
-                        "questions": final_questions,  # **Kategoriya tartibini saqlagan holda APIga chiqadi**
+                        "questions": final_questions,  # Kategoriya tartibini saqlagan holda APIga chiqadi
                         "question_class": question_class,
                     }
                 )
@@ -343,8 +347,8 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            # Barcha ma'lumotlar muvaffaqiyatli saqlandi, endi avtomatik tashqi urlga post qilamiz
-            self._auto_post_saved_data()
+            # Barcha ma'lumotlar muvaffaqiyatli saqlandi, endi avtomatik tashqi URLga post qilamiz.
+            self.auto_post_backup_data()  # external_url parametri ichida sinf atributidan foydalaniladi
 
             return Response(
                 {"success": "Questions saved successfully", "data": final_lists},
@@ -356,11 +360,10 @@ class GenerateRandomQuestionsView(APIView):
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
     def delete(self, request, *args, **kwargs):
         try:
             with transaction.atomic():
-                # O'chirilishi kerak bo'lgan modelni tanlang
                 QuestionList.objects.all().delete()
 
             return Response(
@@ -380,8 +383,13 @@ class GenerateRandomQuestionsView(APIView):
         count = min(count, len(source_list))
         return random.sample(source_list, count)
     
-    def auto_post_backup_data(self, external_url):
+    def auto_post_backup_data(self, external_url=None):
+        # Agar tashqi URL berilmasa, sinf atributidan foydalanamiz.
+        if external_url is None:
+            external_url = self.EXTERNAL_POST_URL
         try:
+            # Misol uchun, backup uchun payloadni barcha Question obyektlaridan yaratamiz.
+            # Agar siz faqat yangi yaratilgan savollarni yubormoqchi bo'lsangiz, ularni alohida tanlab olish lozim.
             backups = Question.objects.all()
             backups_list = []
             for backup in backups:
@@ -395,7 +403,7 @@ class GenerateRandomQuestionsView(APIView):
                     "order": backup.order,
                 })
 
-            # Kutilayotgan format: {"data": []}
+            # Kutilayotgan format: {"data": [...]}
             payload = {"data": backups_list}
 
             # Yuborilayotgan payloadni log orqali ko'rish:
