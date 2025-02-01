@@ -365,6 +365,21 @@ class GenerateRandomQuestionsView(APIView):
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        
+    def delete(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                QuestionList.objects.all().delete()
+
+            return Response(
+                {"success": "All data from ModelName has been deleted successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"An error occurred during deletion: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @staticmethod
     def get_random_items(source_list, count):
