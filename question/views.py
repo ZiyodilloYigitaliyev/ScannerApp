@@ -2,6 +2,7 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from sympy import Max
 from .models import QuestionList, Question, Zip, Backup
 from .serializers import ZipSerializer
 from rest_framework.permissions import AllowAny
@@ -441,7 +442,6 @@ class BackupDataView(APIView):
         try:
             data = request.data
 
-            # Kelgan ma'lumot ro'yxat (list) shaklida bo'lishi kerak
             if not isinstance(data, list):
                 return Response(
                     {"error": "Ma'lumotlar ro'yxati (list) shaklida yuborilishi kerak."},
@@ -451,38 +451,38 @@ class BackupDataView(APIView):
             backups_saved = []
             with transaction.atomic():
                 for item in data:
-                    list_id = item.get("list_id")
+                    orig_list_id = item.get("list_id")
+                    orig_order = item.get("order")
                     category = item.get("category")
                     subject = item.get("subject")
                     text = item.get("text")
                     options = item.get("options")
                     true_answer = item.get("true_answer")
-                    order = item.get("order")
 
                     # Zarur maydonlarni tekshirish
-                    if list_id is None or order is None:
+                    if orig_list_id is None or orig_order is None:
                         return Response(
                             {"error": "list_id va order maydonlari to'liq ko'rsatilishi shart."},
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
-                    # Agar Backup obyekti allaqachon mavjud bo'lsa, uni yangilaymiz,
-                    # aks holda yangi ob'ekt yaratiladi.
-                    backup_obj, created = Backup.objects.update_or_create(
+                    list_id = self._get_unique_value("list_id", orig_list_id)
+                    order = self._get_unique_value("order", orig_order)
+
+                    # Yangi yozuvni yaratamiz
+                    backup_obj = Backup.objects.create(
                         list_id=list_id,
                         order=order,
-                        defaults={
-                            "category": category,
-                            "subject": subject,
-                            "text": text,
-                            "options": options,
-                            "true_answer": true_answer,
-                        }
+                        category=category,
+                        subject=subject,
+                        text=text,
+                        options=options,
+                        true_answer=true_answer,
                     )
                     backups_saved.append({
                         "list_id": backup_obj.list_id,
                         "order": backup_obj.order,
-                        "created": created
+                        "created": True
                     })
 
             return Response(
@@ -495,3 +495,11 @@ class BackupDataView(APIView):
                 {"error": f"Xatolik yuz berdi: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+    def _get_unique_value(self, field_name, current_value):
+        filter_kwargs = {field_name: current_value}
+        if Backup.objects.filter(**filter_kwargs).exists():
+            max_value = Backup.objects.aggregate(max_val=Max(field_name))['max_val'] or current_value
+            return max_value + 1
+        else:
+            return current_value
