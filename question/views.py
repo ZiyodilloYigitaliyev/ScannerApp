@@ -270,6 +270,9 @@ class GenerateRandomQuestionsView(APIView):
             else:
                 request_data = request.data
 
+            # Yangi funksiya yordamida list_id ni yangilash:
+            updated_list_id = self.update_list_id(request_data)
+
             questions_num = request_data.get("num", {})
             questions_data = request_data.get("data", {})
             additional_value = questions_num.get("additional_value", 0)
@@ -287,9 +290,13 @@ class GenerateRandomQuestionsView(APIView):
             final_lists = []
 
             for _ in range(additional_value):
-                # Bazadan oxirgi `list_id` ni olish
-                last_list = QuestionList.objects.order_by("-list_id").first()
-                list_id = (last_list.list_id + 1) if last_list else 100000
+                # Agar POST qilingan ma'lumotda list_id mavjud bo'lsa, update_list_id funksiyasi orqali
+                # bazadagi oxirgi list_id ga 1 qo'shib yangilangan qiymat olinadi.
+                list_id = updated_list_id if updated_list_id is not None else None
+                if list_id is None:
+                    # Agar list_id POST ma'lumotida kelmagan bo'lsa, default qiymat belgilash
+                    last_list = QuestionList.objects.order_by("-list_id").first()
+                    list_id = (last_list.list_id + 1) if last_list else 100000
 
                 final_questions = []
 
@@ -375,6 +382,22 @@ class GenerateRandomQuestionsView(APIView):
             return []
         count = min(count, len(source_list))
         return random.sample(source_list, count)
+    
+    def update_list_id(self, request_data):
+        """
+        Yangi funksiya:
+        POST qilingan ma'lumotlardan 'list_id' ni qabul qiladi.
+        Agar 'list_id' mavjud bo'lsa, bazadagi oxirgi 'list_id' ni topib,
+        unga 1 qo'shib yangi 'list_id' ni qaytaradi.
+        """
+        incoming_list_id = request_data.get("list_id", None)
+        if incoming_list_id is not None:
+            last_list = QuestionList.objects.order_by("-list_id").first()
+            if last_list and last_list.list_id is not None:
+                return last_list.list_id + 1
+            return incoming_list_id
+        return None
+
     
 
 
