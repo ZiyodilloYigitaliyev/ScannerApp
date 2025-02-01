@@ -1,7 +1,8 @@
+import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import QuestionList, Question, Zip
+from .models import QuestionList, Question, Zip, Backup
 from .serializers import ZipSerializer
 from rest_framework.permissions import AllowAny
 import random
@@ -170,6 +171,8 @@ class DeleteAllQuestionsView(APIView):
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
+    
+    EXTERNAL_POST_URL = "https://scan-app-9206bf041b06.herokuapp.com/savol/backup/"
 
     def get(self, request):
         try:
@@ -259,9 +262,6 @@ class GenerateRandomQuestionsView(APIView):
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-
-
-
     def post(self, request):
         try:
             # Ma'lumotni olish
@@ -343,6 +343,9 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
+            # Barcha ma'lumotlar muvaffaqiyatli saqlandi, endi avtomatik tashqi urlga post qilamiz
+            self._auto_post_saved_data()
+
             return Response(
                 {"success": "Questions saved successfully", "data": final_lists},
                 status=status.HTTP_201_CREATED,
@@ -372,13 +375,123 @@ class GenerateRandomQuestionsView(APIView):
     
     @staticmethod
     def get_random_items(source_list, count):
-        """ Har bir kategoriya uchun random savollar olish """
         if not source_list:
             return []
         count = min(count, len(source_list))
         return random.sample(source_list, count)
+    
+    def _auto_post_saved_data(self):
+        try:
+            # Barcha QuestionList va ular bilan bog'liq savollarni olish
+            question_lists = QuestionList.objects.prefetch_related('questions').all()
+            payload = []
+
+            for question_list in question_lists:
+                questions_data = []
+                for q in question_list.questions.all():
+                    questions_data.append({
+                        "id": q.id,
+                        "category": q.category,
+                        "subject": q.subject,
+                        "text": q.text,
+                        "options": q.options,
+                        "true_answer": q.true_answer,
+                        "order": q.order,
+                    })
+                payload.append({
+                    "list_id": question_list.list_id,
+                    "question_class": question_list.question_class,
+                    "created_at": question_list.created_at.isoformat(),
+                    "questions": questions_data,
+                })
+
+            response = requests.post(self.EXTERNAL_POST_URL, json=payload)
+            response.raise_for_status()  # Xatolik yuz bersa exception ko'tariladi
+            print("Auto post successful. Response status:", response.status_code)
+        except Exception as e:
+            print("Failed to auto-post data to external url:", e)
 
 
 
+class BackupDataView(APIView):
+    permission_classes = [AllowAny]
 
+    def get(self, request, *args, **kwargs):
+        try:
+            backups = Backup.objects.all()
+            data = []
+            for backup in backups:
+                data.append({
+                    "list_id": backup.list_id,
+                    "category": backup.category,
+                    "subject": backup.subject,
+                    "text": backup.text,
+                    "options": backup.options,
+                    "true_answer": backup.true_answer,
+                    "order": backup.order,
+                })
+            return Response({"data": data}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"error": f"Xatolik yuz berdi: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+    def post(self, request, *args, **kwargs):
+        try:
+            data = request.data
+
+            # Kelgan ma'lumot ro'yxat (list) shaklida bo'lishi kerak
+            if not isinstance(data, list):
+                return Response(
+                    {"error": "Ma'lumotlar ro'yxati (list) shaklida yuborilishi kerak."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            backups_saved = []
+            with transaction.atomic():
+                for item in data:
+                    list_id = item.get("list_id")
+                    category = item.get("category")
+                    subject = item.get("subject")
+                    text = item.get("text")
+                    options = item.get("options")
+                    true_answer = item.get("true_answer")
+                    order = item.get("order")
+
+                    # Zarur maydonlarni tekshirish
+                    if list_id is None or order is None:
+                        return Response(
+                            {"error": "list_id va order maydonlari to'liq ko'rsatilishi shart."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    # Agar Backup obyekti allaqachon mavjud bo'lsa, uni yangilaymiz,
+                    # aks holda yangi ob'ekt yaratiladi.
+                    backup_obj, created = Backup.objects.update_or_create(
+                        list_id=list_id,
+                        order=order,
+                        defaults={
+                            "category": category,
+                            "subject": subject,
+                            "text": text,
+                            "options": options,
+                            "true_answer": true_answer,
+                        }
+                    )
+                    backups_saved.append({
+                        "list_id": backup_obj.list_id,
+                        "order": backup_obj.order,
+                        "created": created
+                    })
+
+            return Response(
+                {"success": "Backup ma'lumotlari muvaffaqiyatli saqlandi.", "data": backups_saved},
+                status=status.HTTP_201_CREATED
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Xatolik yuz berdi: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
