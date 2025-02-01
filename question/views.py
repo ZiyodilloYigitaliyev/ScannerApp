@@ -291,7 +291,6 @@ class GenerateRandomQuestionsView(APIView):
             additional_value = questions_num.get("additional_value", 0)
             question_class = questions_num.get("class", "")
 
-            # Kategoriyalarni tartibi saqlanadigan qilib olish
             category_structure = {
                 "Majburiy_Fan_1": questions_data.get("Majburiy_Fan_1", []),
                 "Majburiy_Fan_2": questions_data.get("Majburiy_Fan_2", []),
@@ -303,21 +302,18 @@ class GenerateRandomQuestionsView(APIView):
             final_lists = []
 
             for _ in range(additional_value):
-                # Bazadan oxirgi `list_id` ni olish
-                last_list = QuestionList.objects.order_by("-list_id").first()
-                list_id = (last_list.list_id + 1) if last_list else 100000
+                list_id = self.get_latest_list_id_from_external_source()
 
                 final_questions = []
 
-                # Har bir kategoriya uchun random savollarni olish (kategoriya tartibini buzmaslik)
+                # Har bir kategoriya uchun random savollarni olish
                 for category in category_structure.keys():
                     questions = category_structure[category]
                     if not questions:
-                        continue  # Bo'sh kategoriya bo‘lsa tashlab ketamiz
+                        continue  
                     
                     random_questions = self.get_random_items(questions, 10 if "Majburiy" in category else 30)
 
-                    # Kategoriya ichidagi savollarni tartib bilan qo‘shish
                     for idx, q in enumerate(random_questions):
                         final_questions.append({
                             "category": category,
@@ -325,13 +321,13 @@ class GenerateRandomQuestionsView(APIView):
                             "text": q.get("text", ""),
                             "options": q.get("options", ""),
                             "true_answer": q.get("true_answer", ""),
-                            "order": idx + 1,  # Kategoriya ichida tartibni saqlash
+                            "order": idx + 1,
                         })
 
                 final_lists.append(
                     {
                         "list_id": list_id,
-                        "questions": final_questions,  # Kategoriya tartibini saqlagan holda APIga chiqadi
+                        "questions": final_questions,
                         "question_class": question_class,
                     }
                 )
@@ -359,9 +355,6 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            # Barcha ma'lumotlar muvaffaqiyatli saqlandi, endi avtomatik tashqi URLga post qilamiz.
-            self.auto_post_backup_data()  # external_url parametri ichida sinf atributidan foydalaniladi
-
             return Response(
                 {"success": "Questions saved successfully", "data": final_lists},
                 status=status.HTTP_201_CREATED,
@@ -373,21 +366,6 @@ class GenerateRandomQuestionsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    def delete(self, request, *args, **kwargs):
-        try:
-            with transaction.atomic():
-                QuestionList.objects.all().delete()
-
-            return Response(
-                {"success": "All data from ModelName has been deleted successfully."},
-                status=status.HTTP_200_OK,
-            )
-        except Exception as e:
-            return Response(
-                {"error": f"An error occurred during deletion: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-    
     @staticmethod
     def get_random_items(source_list, count):
         if not source_list:
