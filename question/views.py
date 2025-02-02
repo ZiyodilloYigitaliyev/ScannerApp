@@ -259,17 +259,22 @@ class GenerateRandomQuestionsView(APIView):
 
     def post(self, request):
         try:
+            # Agar yuborilgan ma'lumot ro'yxat shaklida bo'lsa, birinchi elementni olamiz
             if isinstance(request.data, list):
                 request_data = request.data[0]
             else:
                 request_data = request.data
 
-            # Agar num bo‘limida list_id mavjud bo‘lsa, unga 1 qo‘shamiz; aks holda default 100000 dan boshlaymiz.
             questions_num = request_data.get("num", {})
+            # Agar num bo'limida list_id mavjud bo'lsa, uning qiymatiga 1 qo'shamiz, aks holda 100000 dan boshlaymiz.
             if "list_id" in questions_num:
                 updated_list_id = questions_num.get("list_id") + 1
             else:
                 updated_list_id = 100000
+
+            # Yangi list_id qiymatini bazada duplikat bo'lmasligini ta'minlash
+            while QuestionList.objects.filter(list_id=updated_list_id).exists():
+                updated_list_id += 1
 
             questions_data = request_data.get("data", {})
             additional_value = questions_num.get("additional_value", 0)
@@ -330,7 +335,6 @@ class GenerateRandomQuestionsView(APIView):
                                 order=question.get("order"),
                             )
                 except Exception as e:
-                    # Xatolik tafsilotlarini ham javobga kiritamiz
                     print("Database save error:", e)
                     return Response(
                         {"error": f"Database save error: {str(e)}"},
