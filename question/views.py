@@ -264,7 +264,7 @@ class GenerateRandomQuestionsView(APIView):
             else:
                 request_data = request.data
 
-            updated_list_id = self.update_list_id(request_data)
+            updated_list_id = self.update_list_id()
 
             questions_num = request_data.get("num", {})
             questions_data = request_data.get("data", {})
