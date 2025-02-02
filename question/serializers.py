@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import QuestionList, Question, Zip, Backup
+from .models import QuestionList, Question, Zip
 
 class ZipSerializer(serializers.ModelSerializer):
     class Meta:

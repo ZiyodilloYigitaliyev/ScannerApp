@@ -22,7 +22,6 @@ from tempfile import NamedTemporaryFile
 import os
 logger = logging.getLogger(__name__)
 
-
 class HTMLFromZipView(APIView):
     permission_classes = [AllowAny]
 
@@ -171,8 +170,6 @@ class DeleteAllQuestionsView(APIView):
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
-    
-    EXTERNAL_POST_URL = "https://scan-app-9206bf041b06.herokuapp.com/savol/backup/"
 
     def get(self, request):
         try:
@@ -183,15 +180,12 @@ class GenerateRandomQuestionsView(APIView):
             question_filter = request.query_params.get('question_filter', '').lower() == 'true'
             questions_only = request.query_params.get('questions_only', '').lower() == 'true'
 
-            # Filtrlash
             question_lists = QuestionList.objects.prefetch_related('questions').all()
 
             if list_id:
                 question_lists = question_lists.filter(list_id=list_id)
-
             if question_class:
                 question_lists = question_lists.filter(question_class=question_class)
-
             if date:
                 try:
                     filter_date = datetime.strptime(date, "%Y-%m-%d").date()
@@ -204,7 +198,6 @@ class GenerateRandomQuestionsView(APIView):
 
             response_data = []
             for question_list in question_lists:
-                # Kategoriyalarni belgilangan tartibda olish
                 category_order = [
                     "Majburiy_Fan_1",
                     "Majburiy_Fan_2",
@@ -212,24 +205,17 @@ class GenerateRandomQuestionsView(APIView):
                     "Fan_1",
                     "Fan_2"
                 ]
-                
-                # Savollarni kategoriyalar bo'yicha guruhlash
                 all_questions = question_list.questions.all()
                 if category:
                     all_questions = all_questions.filter(category=category)
-
                 grouped_questions = {}
                 for q in all_questions:
                     grouped_questions.setdefault(q.category, []).append(q)
-
-                # Kategoriyalarni tartiblash va savollarni randomlashtirish
                 ordered_questions = []
                 for cat in category_order:
                     if cat in grouped_questions:
-                        random.shuffle(grouped_questions[cat])  # Kategoriya ichida random
+                        random.shuffle(grouped_questions[cat])
                         ordered_questions.extend(grouped_questions[cat])
-
-                # Global orderni yaratish
                 final_questions = [
                     {
                         "id": q.id,
@@ -239,11 +225,10 @@ class GenerateRandomQuestionsView(APIView):
                         "subject": q.subject,
                         "true_answer": q.true_answer,
                         "list": q.list_id,
-                        "order": idx + 1  # 1 dan boshlab tartib
+                        "order": idx + 1
                     }
                     for idx, q in enumerate(ordered_questions)
                 ]
-
                 list_data = {
                     "list_id": question_list.list_id,
                     "question_class": question_list.question_class,
@@ -251,31 +236,40 @@ class GenerateRandomQuestionsView(APIView):
                     "questions": final_questions,
                     "categories": list(grouped_questions.keys())
                 }
-
                 if questions_only:
                     del list_data["questions"]
-                    
                 response_data.append(list_data)
 
             return Response(response_data, status=status.HTTP_200_OK)
-
         except Exception as e:
-            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def post(self, request):
         try:
-            # Ma'lumotni olish
+            # Agar yuborilgan ma'lumot ro'yxat shaklida bo'lsa, birinchi elementni olamiz
             if isinstance(request.data, list):
                 request_data = request.data[0]
             else:
                 request_data = request.data
 
             questions_num = request_data.get("num", {})
+            # Agar num bo'limida list_id mavjud bo'lsa, uning qiymatiga 1 qo'shamiz; aks holda 100000 dan boshlaymiz.
+            if "list_id" in questions_num:
+                updated_list_id = questions_num.get("list_id") + 1
+            else:
+                updated_list_id = 100000
+
+            # Qayta takrorlanmasligini tekshirish: agar hozirgi updated_list_id bazada mavjud bo'lsa, oshirib boramiz.
+            while QuestionList.objects.filter(list_id=updated_list_id).exists():
+                updated_list_id += 1
+
             questions_data = request_data.get("data", {})
             additional_value = questions_num.get("additional_value", 0)
             question_class = questions_num.get("class", "")
 
-            # Kategoriyalarni tartibi saqlanadigan qilib olish
             category_structure = {
                 "Majburiy_Fan_1": questions_data.get("Majburiy_Fan_1", []),
                 "Majburiy_Fan_2": questions_data.get("Majburiy_Fan_2", []),
@@ -286,22 +280,19 @@ class GenerateRandomQuestionsView(APIView):
 
             final_lists = []
 
+            # Har bir yangi list uchun: (agar additional_value bir nechta bo'lsa, har biri uchun alohida list yaratiladi)
             for _ in range(additional_value):
-                # Bazadan oxirgi `list_id` ni olish
-                last_list = QuestionList.objects.order_by("-list_id").first()
-                list_id = (last_list.list_id + 1) if last_list else 100000
+                # Shu yerda updated_list_id ga nisbatan yagona list_id olinadi
+                while QuestionList.objects.filter(list_id=updated_list_id).exists():
+                    updated_list_id += 1
+                list_id = updated_list_id
 
                 final_questions = []
-
-                # Har bir kategoriya uchun random savollarni olish (kategoriya tartibini buzmaslik)
                 for category in category_structure.keys():
                     questions = category_structure[category]
                     if not questions:
-                        continue  # Bo'sh kategoriya bo‘lsa tashlab ketamiz
-                    
+                        continue
                     random_questions = self.get_random_items(questions, 10 if "Majburiy" in category else 30)
-
-                    # Kategoriya ichidagi savollarni tartib bilan qo‘shish
                     for idx, q in enumerate(random_questions):
                         final_questions.append({
                             "category": category,
@@ -309,18 +300,14 @@ class GenerateRandomQuestionsView(APIView):
                             "text": q.get("text", ""),
                             "options": q.get("options", ""),
                             "true_answer": q.get("true_answer", ""),
-                            "order": idx + 1,  # **Kategoriya ichida tartibni saqlash**
+                            "order": idx + 1,
                         })
+                final_lists.append({
+                    "list_id": list_id,
+                    "questions": final_questions,
+                    "question_class": question_class,
+                })
 
-                final_lists.append(
-                    {
-                        "list_id": list_id,
-                        "questions": final_questions,  # **Kategoriya tartibini saqlagan holda APIga chiqadi**
-                        "question_class": question_class,
-                    }
-                )
-
-                # Bazaga saqlash
                 try:
                     with transaction.atomic():
                         question_list = QuestionList.objects.create(
@@ -337,32 +324,29 @@ class GenerateRandomQuestionsView(APIView):
                                 order=question.get("order"),
                             )
                 except Exception as e:
-                    print(f"Error during database save: {e}")
+                    print("Database save error:", e)
                     return Response(
-                        {"error": "Database save error"},
+                        {"error": f"Database save error: {str(e)}"},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            # Barcha ma'lumotlar muvaffaqiyatli saqlandi, endi avtomatik tashqi urlga post qilamiz
-            self._auto_post_saved_data()
+                # Keyingi list uchun updated_list_id ni 1 ga oshiramiz
+                updated_list_id += 1
 
             return Response(
                 {"success": "Questions saved successfully", "data": final_lists},
                 status=status.HTTP_201_CREATED,
             )
-
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
     def delete(self, request, *args, **kwargs):
         try:
             with transaction.atomic():
-                # O'chirilishi kerak bo'lgan modelni tanlang
                 QuestionList.objects.all().delete()
-
             return Response(
                 {"success": "All data from ModelName has been deleted successfully."},
                 status=status.HTTP_200_OK,
@@ -380,34 +364,6 @@ class GenerateRandomQuestionsView(APIView):
         count = min(count, len(source_list))
         return random.sample(source_list, count)
     
-    def _auto_post_saved_data(self):
-        try:
-            # Barcha QuestionList va ular bilan bog'liq savollarni olish
-            question_lists = QuestionList.objects.prefetch_related('questions').all()
-            payload = []
+    
 
-            for question_list in question_lists:
-                questions_data = []
-                for q in question_list.questions.all():
-                    questions_data.append({
-                        "id": q.id,
-                        "category": q.category,
-                        "subject": q.subject,
-                        "text": q.text,
-                        "options": q.options,
-                        "true_answer": q.true_answer,
-                        "order": q.order,
-                    })
-                payload.append({
-                    "list_id": question_list.list_id,
-                    "question_class": question_list.question_class,
-                    "created_at": question_list.created_at.isoformat(),
-                    "questions": questions_data,
-                })
-
-            response = requests.post(self.EXTERNAL_POST_URL, json=payload)
-            response.raise_for_status()  # Xatolik yuz bersa exception ko'tariladi
-            print("Auto post successful. Response status:", response.status_code)
-        except Exception as e:
-            print("Failed to auto-post data to external url:", e)
 
