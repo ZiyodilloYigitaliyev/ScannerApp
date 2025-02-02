@@ -89,13 +89,9 @@ def load_coordinates_from_json(json_path):
 
 
 def extract_from_coordinates(bubbles, coordinates):
-    """
-    JSON'dagi bubbles ma'lumotlari va koordinatalar bo'yicha mos ma'lumotlarni ajratib olish.
-    :param bubbles: JSON'dan kelgan bubbles
-    :param coordinates: Koordinatalar (JSON'dan yuklangan)
-    """
+    if not bubbles or not coordinates:
+        return {}
     extracted_data = {}
-
     for key, coord_list in coordinates.items():
         for index, coord in enumerate(coord_list):
             if coord in bubbles:  # Agar koordinata bubbles ichida bo'lsa
