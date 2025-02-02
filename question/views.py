@@ -347,12 +347,20 @@ class GenerateRandomQuestionsView(APIView):
         try:
             response = requests.get("https://backup-questions-e95023d8185c.herokuapp.com/backup")
             if response.status_code == 200:
-                data = response.json() 
-                last_list_id = max(data) if data else 100000
-                return last_list_id + 1
+                try:
+                    data = response.json()  # JSON formatida o‘qish
+                    if isinstance(data, list):  # Agar ro‘yxat bo‘lsa
+                        last_list_id = max(data) if data else 100000
+                        return last_list_id + 1
+                    else:
+                        print(f"Unexpected response format: {data}")
+                        return 100000
+                except Exception as e:
+                    print(f"JSON parsing error: {e}, Response Text: {response.text}")
+                    return 100000
             else:
-                print(f"Error fetching list_id: {response.status_code}")
-                return 100000 
+                print(f"Error fetching list_id: {response.status_code}, Response: {response.text}")
+                return 100000
         except Exception as e:
             print(f"Error fetching list_id: {e}")
             return 100000
