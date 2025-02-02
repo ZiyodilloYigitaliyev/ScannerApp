@@ -184,10 +184,8 @@ class GenerateRandomQuestionsView(APIView):
 
             if list_id:
                 question_lists = question_lists.filter(list_id=list_id)
-
             if question_class:
                 question_lists = question_lists.filter(question_class=question_class)
-
             if date:
                 try:
                     filter_date = datetime.strptime(date, "%Y-%m-%d").date()
@@ -207,21 +205,17 @@ class GenerateRandomQuestionsView(APIView):
                     "Fan_1",
                     "Fan_2"
                 ]
-                
                 all_questions = question_list.questions.all()
                 if category:
                     all_questions = all_questions.filter(category=category)
-
                 grouped_questions = {}
                 for q in all_questions:
                     grouped_questions.setdefault(q.category, []).append(q)
-
                 ordered_questions = []
                 for cat in category_order:
                     if cat in grouped_questions:
                         random.shuffle(grouped_questions[cat])
                         ordered_questions.extend(grouped_questions[cat])
-
                 final_questions = [
                     {
                         "id": q.id,
@@ -235,7 +229,6 @@ class GenerateRandomQuestionsView(APIView):
                     }
                     for idx, q in enumerate(ordered_questions)
                 ]
-
                 list_data = {
                     "list_id": question_list.list_id,
                     "question_class": question_list.question_class,
@@ -243,14 +236,11 @@ class GenerateRandomQuestionsView(APIView):
                     "questions": final_questions,
                     "categories": list(grouped_questions.keys())
                 }
-
                 if questions_only:
                     del list_data["questions"]
-                    
                 response_data.append(list_data)
 
             return Response(response_data, status=status.HTTP_200_OK)
-
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
@@ -266,13 +256,13 @@ class GenerateRandomQuestionsView(APIView):
                 request_data = request.data
 
             questions_num = request_data.get("num", {})
-            # Agar num bo'limida list_id mavjud bo'lsa, uning qiymatiga 1 qo'shamiz, aks holda 100000 dan boshlaymiz.
+            # Agar num bo'limida list_id mavjud bo'lsa, uning qiymatiga 1 qo'shamiz; aks holda 100000 dan boshlaymiz.
             if "list_id" in questions_num:
                 updated_list_id = questions_num.get("list_id") + 1
             else:
                 updated_list_id = 100000
 
-            # Yangi list_id qiymatini bazada duplikat bo'lmasligini ta'minlash
+            # Qayta takrorlanmasligini tekshirish: agar hozirgi updated_list_id bazada mavjud bo'lsa, oshirib boramiz.
             while QuestionList.objects.filter(list_id=updated_list_id).exists():
                 updated_list_id += 1
 
@@ -290,17 +280,19 @@ class GenerateRandomQuestionsView(APIView):
 
             final_lists = []
 
+            # Har bir yangi list uchun: (agar additional_value bir nechta bo'lsa, har biri uchun alohida list yaratiladi)
             for _ in range(additional_value):
+                # Shu yerda updated_list_id ga nisbatan yagona list_id olinadi
+                while QuestionList.objects.filter(list_id=updated_list_id).exists():
+                    updated_list_id += 1
                 list_id = updated_list_id
-                final_questions = []
 
+                final_questions = []
                 for category in category_structure.keys():
                     questions = category_structure[category]
                     if not questions:
                         continue
-                    
                     random_questions = self.get_random_items(questions, 10 if "Majburiy" in category else 30)
-
                     for idx, q in enumerate(random_questions):
                         final_questions.append({
                             "category": category,
@@ -310,14 +302,11 @@ class GenerateRandomQuestionsView(APIView):
                             "true_answer": q.get("true_answer", ""),
                             "order": idx + 1,
                         })
-
-                final_lists.append(
-                    {
-                        "list_id": list_id,
-                        "questions": final_questions,
-                        "question_class": question_class,
-                    }
-                )
+                final_lists.append({
+                    "list_id": list_id,
+                    "questions": final_questions,
+                    "question_class": question_class,
+                })
 
                 try:
                     with transaction.atomic():
@@ -341,11 +330,13 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
+                # Keyingi list uchun updated_list_id ni 1 ga oshiramiz
+                updated_list_id += 1
+
             return Response(
                 {"success": "Questions saved successfully", "data": final_lists},
                 status=status.HTTP_201_CREATED,
             )
-
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
@@ -356,7 +347,6 @@ class GenerateRandomQuestionsView(APIView):
         try:
             with transaction.atomic():
                 QuestionList.objects.all().delete()
-
             return Response(
                 {"success": "All data from ModelName has been deleted successfully."},
                 status=status.HTTP_200_OK,
