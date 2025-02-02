@@ -264,6 +264,7 @@ class GenerateRandomQuestionsView(APIView):
             else:
                 request_data = request.data
 
+            # Agar num bo‘limida list_id mavjud bo‘lsa, unga 1 qo‘shamiz; aks holda default 100000 dan boshlaymiz.
             questions_num = request_data.get("num", {})
             if "list_id" in questions_num:
                 updated_list_id = questions_num.get("list_id") + 1
@@ -329,8 +330,10 @@ class GenerateRandomQuestionsView(APIView):
                                 order=question.get("order"),
                             )
                 except Exception as e:
+                    # Xatolik tafsilotlarini ham javobga kiritamiz
+                    print("Database save error:", e)
                     return Response(
-                        {"error": "Database save error"},
+                        {"error": f"Database save error: {str(e)}"},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
