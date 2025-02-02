@@ -14,7 +14,16 @@ logger = logging.getLogger(__name__)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.json')
 ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
-PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')  # Telefon raqami koordinatalari
+PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')# Telefon raqami koordinatalari
+
+def extract_from_coordinates(bubbles, coordinates):
+    if not bubbles or not coordinates:
+        return None
+    for coord_list in coordinates.values():
+        for coord in coord_list:
+            if coord in bubbles:
+                return coord  # To'g'ri raqamni qaytarish
+    return None
 
 class ProcessImageView(APIView):
     permission_classes = [AllowAny]
@@ -28,7 +37,6 @@ class ProcessImageView(APIView):
                     {"error": "Bo'sh JSON Yuborildi"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            serializer = ProcessedTestSerializer(data=request.data)
             if not serializer.is_valid():
                 return Response(
                     {"error": "Invalid data", "details": serializer.errors},
@@ -36,13 +44,10 @@ class ProcessImageView(APIView):
                 )
             # JSON'dagi s3url va bubbles ma'lumotlarini olish
             s3_url = serializer.validated_data.get('file_url')
-            bubbles = serializer.validated_data.get('bubbles')  # JSONField orqali olinadigan ma'lumot
+            bubbles = serializer.validated_data.get('bubbles')
 
             # Telefon raqami va IDni aniqlash
-            # id_coordinates = load_coordinates_from_json(ID_PATH)
             phone_number_coordinates = load_coordinates_from_json(PHONE_NUMBER_PATH)
-
-            # student_id = extract_from_coordinates(bubbles, id_coordinates)
             phone_number = extract_from_coordinates(bubbles, phone_number_coordinates)
 
             student_id_coordinates = load_coordinates_from_json(ID_PATH)
@@ -50,9 +55,9 @@ class ProcessImageView(APIView):
 
             if student_id is None:
                 return Response(
-                {"error": "Student ID aniqlanmadi"},
-                status=status.HTTP_400_BAD_REQUEST
-        )
+                    {"error": "Student ID aniqlanmadi"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             # Savollarning javoblarini tekshirish
             question_coordinates = load_coordinates_from_json(COORDINATES_PATH)
@@ -90,18 +95,7 @@ class ProcessImageView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-
 def load_coordinates_from_json(json_path):
     """JSON faylidan koordinatalarni yuklash"""
     with open(json_path, 'r') as file:
         return json.load(file)
-
-
-def extract_from_coordinates(bubbles, coordinates):
-    if not bubbles or not coordinates:
-        return None
-    for coord_list in coordinates.values():
-        for coord in coord_list:
-            if coord in bubbles:
-                return coord  # To'g'ri raqamni qaytarish
-    return None
