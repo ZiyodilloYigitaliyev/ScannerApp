@@ -264,9 +264,12 @@ class GenerateRandomQuestionsView(APIView):
             else:
                 request_data = request.data
 
-            updated_list_id = self.update_list_id()
-
             questions_num = request_data.get("num", {})
+            if "list_id" in questions_num:
+                updated_list_id = questions_num.get("list_id") + 1
+            else:
+                updated_list_id = 100000
+
             questions_data = request_data.get("data", {})
             additional_value = questions_num.get("additional_value", 0)
             question_class = questions_num.get("class", "")
@@ -341,32 +344,6 @@ class GenerateRandomQuestionsView(APIView):
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-
-    @staticmethod
-    def update_list_id():
-        try:
-            response = requests.get("https://backup-questions-e95023d8185c.herokuapp.com/backup")
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                    if isinstance(data, dict) and "list_id" in data:
-                        last_list_id = data["list_id"]
-                        return last_list_id + 1
-                    else:
-                        print(f"Unexpected response format: {data}")
-                        return 100000
-                except Exception as e:
-                    print(f"JSON parsing error: {e}, Response Text: {response.text}")
-                    return 100000
-            else:
-                print(f"Error fetching list_id: {response.status_code}, Response: {response.text}")
-                return 100000
-        except Exception as e:
-            print(f"Error fetching list_id: {e}")
-            return 100000
-
-
 
     def delete(self, request, *args, **kwargs):
         try:
