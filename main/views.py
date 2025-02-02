@@ -39,10 +39,10 @@ class ProcessImageView(APIView):
             bubbles = serializer.validated_data.get('bubbles')  # JSONField orqali olinadigan ma'lumot
 
             # Telefon raqami va IDni aniqlash
-            id_coordinates = load_coordinates_from_json(ID_PATH)
+            # id_coordinates = load_coordinates_from_json(ID_PATH)
             phone_number_coordinates = load_coordinates_from_json(PHONE_NUMBER_PATH)
 
-            student_id = extract_from_coordinates(bubbles, id_coordinates)
+            # student_id = extract_from_coordinates(bubbles, id_coordinates)
             phone_number = extract_from_coordinates(bubbles, phone_number_coordinates)
 
             student_id_coordinates = load_coordinates_from_json(ID_PATH)
