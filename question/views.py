@@ -264,7 +264,7 @@ class GenerateRandomQuestionsView(APIView):
             else:
                 request_data = request.data
 
-            updated_list_id = self.update_list_id()
+            updated_list_id = self.update_list_id(request_data)
 
             questions_num = request_data.get("num", {})
             questions_data = request_data.get("data", {})
@@ -343,13 +343,14 @@ class GenerateRandomQuestionsView(APIView):
             )
 
 
-    def update_list_id(self, request_data):
+    @staticmethod
+    def update_list_id(request_data):
         try:
             response = requests.get("https://backup-questions-e95023d8185c.herokuapp.com/backup")
             if response.status_code == 200:
                 try:
-                    data = response.json()  # JSON formatida o‘qish
-                    if isinstance(data, list):  # Agar ro‘yxat bo‘lsa
+                    data = response.json()
+                    if isinstance(data, list):
                         last_list_id = max(data) if data else 100000
                         return last_list_id + 1
                     else:
@@ -364,6 +365,7 @@ class GenerateRandomQuestionsView(APIView):
         except Exception as e:
             print(f"Error fetching list_id: {e}")
             return 100000
+
 
 
     def delete(self, request, *args, **kwargs):
