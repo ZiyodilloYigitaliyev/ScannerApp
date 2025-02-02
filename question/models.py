@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.postgres.fields import ArrayField
 
 class QuestionList(models.Model):
-    list_id = models.IntegerField(unique=True, default=100000)
+    list_id = models.IntegerField(default=100000)
     question_class = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     
