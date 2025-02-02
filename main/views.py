@@ -48,6 +48,12 @@ class ProcessImageView(APIView):
             student_id_coordinates = load_coordinates_from_json(ID_PATH)
             student_id = extract_from_coordinates(bubbles, student_id_coordinates)
 
+            if student_id is None:
+                return Response(
+                {"error": "Student ID aniqlanmadi"},
+                status=status.HTTP_400_BAD_REQUEST
+        )
+
             # Savollarning javoblarini tekshirish
             question_coordinates = load_coordinates_from_json(COORDINATES_PATH)
             marked_answers = extract_from_coordinates(bubbles, question_coordinates)
@@ -93,11 +99,9 @@ def load_coordinates_from_json(json_path):
 
 def extract_from_coordinates(bubbles, coordinates):
     if not bubbles or not coordinates:
-        return {}
-    extracted_data = {}
-    for key, coord_list in coordinates.items():
-        for index, coord in enumerate(coord_list):
-            if coord in bubbles:  # Agar koordinata bubbles ichida bo'lsa
-                extracted_data[key] = index + 1  # Variant raqamini saqlash
-
-    return extracted_data
+        return None
+    for coord_list in coordinates.values():
+        for coord in coord_list:
+            if coord in bubbles:
+                return coord  # To'g'ri raqamni qaytarish
+    return None
