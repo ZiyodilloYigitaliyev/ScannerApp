@@ -45,6 +45,9 @@ class ProcessImageView(APIView):
             student_id = extract_from_coordinates(bubbles, id_coordinates)
             phone_number = extract_from_coordinates(bubbles, phone_number_coordinates)
 
+            student_id_coordinates = load_coordinates_from_json(ID_PATH)
+            student_id = extract_from_coordinates(bubbles, student_id_coordinates)
+
             # Savollarning javoblarini tekshirish
             question_coordinates = load_coordinates_from_json(COORDINATES_PATH)
             marked_answers = extract_from_coordinates(bubbles, question_coordinates)
