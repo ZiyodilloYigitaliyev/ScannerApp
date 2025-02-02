@@ -16,13 +16,17 @@ COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.json')
 ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
 PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')  # Telefon raqami koordinatalari
 
-def extract_from_coordinates(bubbles, coordinates):
-    if not bubbles or not coordinates:
+def extract_from_coordinates(bubbles, student_id_coordinates):
+    logger.info("extract_from_coordinates called with bubbles: %s and coordinates: %s", bubbles, coordinates)
+    if not bubbles or not student_id_coordinates:
+        logger.warning("bubbles or coordinates are empty")
         return None
     for coord_list in coordinates.values():
         for coord in coord_list:
             if coord in bubbles:
+                logger.info("Match found: %s", coord)
                 return coord  # To'g'ri raqamni qaytarish
+    logger.info("No match found")
     return None
 
 class ProcessImageView(APIView):
