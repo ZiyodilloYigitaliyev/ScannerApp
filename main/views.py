@@ -30,30 +30,29 @@ class ProcessImageView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            log_entries = []  # Log yozuvlarini saqlash uchun ro'yxat
-            log_entries.append("Request received")
+            logger.info("Request received")
 
             # Ma'lumotlarni validatsiya qilish
             serializer = ProcessedTestSerializer(data=request.data)
             if not request.data:
-                log_entries.append("Empty JSON received")
+                logger.warning("Empty JSON received")
                 return Response(
                     {"error": "Bo'sh JSON Yuborildi"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             if not serializer.is_valid():
-                log_entries.append(f"Invalid data: {serializer.errors}")
+                logger.warning(f"Invalid data: {serializer.errors}")
                 return Response(
                     {"error": "Invalid data", "details": serializer.errors},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            log_entries.append("Data validated")
+            logger.info("Data validated")
 
             # JSON'dagi s3url va bubbles ma'lumotlarini olish
             s3_url = serializer.validated_data.get('file_url')
             bubbles = serializer.validated_data.get('bubbles')
-            log_entries.append(f"s3_url: {s3_url}, bubbles: {bubbles}")
+            logger.info(f"s3_url: {s3_url}, bubbles: {bubbles}")
 
             # Telefon raqami va IDni aniqlash
             phone_number_coordinates = load_coordinates_from_json(PHONE_NUMBER_PATH)
@@ -63,18 +62,18 @@ class ProcessImageView(APIView):
             student_id = extract_from_coordinates(bubbles, student_id_coordinates)
 
             if student_id is None:
-                log_entries.append("Student ID not found")
+                logger.warning("Student ID not found")
                 return Response(
                     {"error": "Student ID aniqlanmadi"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            log_entries.append(f"Student ID: {student_id}, Phone number: {phone_number}")
+            logger.info(f"Student ID: {student_id}, Phone number: {phone_number}")
 
             # Savollarning javoblarini tekshirish
             question_coordinates = load_coordinates_from_json(COORDINATES_PATH)
             marked_answers = extract_from_coordinates(bubbles, question_coordinates)
-            log_entries.append(f"Marked answers: {marked_answers}")
+            logger.info(f"Marked answers: {marked_answers}")
 
             # Natijani saqlash
             with transaction.atomic():
@@ -100,8 +99,7 @@ class ProcessImageView(APIView):
                 "phone_number": phone_number,
                 "answers": marked_answers
             }
-            log_entries.append("Data saved successfully")
-            print("\n".join(log_entries))  # Log yozuvlarini chop etish
+            logger.info("Data saved successfully")
 
             return Response(response, status=status.HTTP_201_CREATED)
 
