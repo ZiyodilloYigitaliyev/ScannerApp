@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.json')
 ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
-PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')# Telefon raqami koordinatalari
+PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')  # Telefon raqami koordinatalari
 
 def extract_from_coordinates(bubbles, coordinates):
     if not bubbles or not coordinates:
@@ -30,21 +30,30 @@ class ProcessImageView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
+            log_entries = []  # Log yozuvlarini saqlash uchun ro'yxat
+            log_entries.append("Request received")
+
             # Ma'lumotlarni validatsiya qilish
             serializer = ProcessedTestSerializer(data=request.data)
             if not request.data:
+                log_entries.append("Empty JSON received")
                 return Response(
                     {"error": "Bo'sh JSON Yuborildi"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             if not serializer.is_valid():
+                log_entries.append(f"Invalid data: {serializer.errors}")
                 return Response(
                     {"error": "Invalid data", "details": serializer.errors},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
+            log_entries.append("Data validated")
+
             # JSON'dagi s3url va bubbles ma'lumotlarini olish
             s3_url = serializer.validated_data.get('file_url')
             bubbles = serializer.validated_data.get('bubbles')
+            log_entries.append(f"s3_url: {s3_url}, bubbles: {bubbles}")
 
             # Telefon raqami va IDni aniqlash
             phone_number_coordinates = load_coordinates_from_json(PHONE_NUMBER_PATH)
@@ -54,14 +63,18 @@ class ProcessImageView(APIView):
             student_id = extract_from_coordinates(bubbles, student_id_coordinates)
 
             if student_id is None:
+                log_entries.append("Student ID not found")
                 return Response(
                     {"error": "Student ID aniqlanmadi"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+            log_entries.append(f"Student ID: {student_id}, Phone number: {phone_number}")
+
             # Savollarning javoblarini tekshirish
             question_coordinates = load_coordinates_from_json(COORDINATES_PATH)
             marked_answers = extract_from_coordinates(bubbles, question_coordinates)
+            log_entries.append(f"Marked answers: {marked_answers}")
 
             # Natijani saqlash
             with transaction.atomic():
@@ -80,13 +93,17 @@ class ProcessImageView(APIView):
                     )
 
             # Javob qaytarish
-            return Response({
+            response = {
                 "message": "Ma'lumotlar muvaffaqiyatli saqlandi.",
                 "file_url": s3_url,
                 "student_id": student_id,
                 "phone_number": phone_number,
                 "answers": marked_answers
-            }, status=status.HTTP_201_CREATED)
+            }
+            log_entries.append("Data saved successfully")
+            print("\n".join(log_entries))  # Log yozuvlarini chop etish
+
+            return Response(response, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             logger.error(f"Xatolik yuz berdi: {str(e)}")
