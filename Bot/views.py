@@ -34,12 +34,14 @@ class RegisterUserAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class BotAllDatesAPIView(APIView):
+    permission_classes = [AllowAny]
     def get(self, request):
         all_users = BotUser.objects.all()  # Barcha foydalanuvchilarni olish
         serializer = BotUserSerializer(all_users, many=True)  # Ko‘p obyektlar bo‘lgani uchun many=True
         return Response(serializer.data)  # JSON formatda qaytarish
     
 class ChannelStatsView(APIView):
+    permission_classes = [AllowAny]
     """
     Kanal statistikalarini qabul qilish va yangilash APIsi
     """
