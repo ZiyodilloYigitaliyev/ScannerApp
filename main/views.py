@@ -17,7 +17,7 @@ ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
 PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')  # Telefon raqami koordinatalari
 
 def extract_from_coordinates(bubbles, student_id_coordinates):
-    logger.info("extract_from_coordinates called with bubbles: %s and coordinates: %s", bubbles, coordinates)
+    logger.info("extract_from_coordinates called with bubbles: %s and coordinates: %s", bubbles, student_id_coordinates)
     if not bubbles or not student_id_coordinates:
         logger.warning("bubbles or coordinates are empty")
         return None
