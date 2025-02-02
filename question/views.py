@@ -342,16 +342,21 @@ class GenerateRandomQuestionsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    def update_list_id(self):
+
+    def update_list_id(self, request_data):
         try:
             response = requests.get("https://backup-questions-e95023d8185c.herokuapp.com/backup")
             if response.status_code == 200:
-                data = response.json()
-                max_list_id = max([item.get("list_id", 0) for item in data], default=100000)
-                return max_list_id + 1
+                data = response.json() 
+                last_list_id = max(data) if data else 100000
+                return last_list_id + 1
+            else:
+                print(f"Error fetching list_id: {response.status_code}")
+                return 100000 
         except Exception as e:
             print(f"Error fetching list_id: {e}")
-        return 100000
+            return 100000
+
 
     def delete(self, request, *args, **kwargs):
         try:
