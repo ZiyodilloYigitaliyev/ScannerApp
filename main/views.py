@@ -21,7 +21,7 @@ def extract_from_coordinates(bubbles, student_id_coordinates):
     if not bubbles or not student_id_coordinates:
         logger.warning("bubbles or coordinates are empty")
         return None
-    for coord_list in coordinates.values():
+    for coord_list in student_id_coordinates.values():
         for coord in coord_list:
             if coord in bubbles:
                 logger.info("Match found: %s", coord)
