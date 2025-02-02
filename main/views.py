@@ -33,26 +33,24 @@ class ProcessImageView(APIView):
             logger.info("Request received")
 
             # Ma'lumotlarni validatsiya qilish
-            serializer = ProcessedTestSerializer(data=request.data)
             if not request.data:
                 logger.warning("Empty JSON received")
                 return Response(
                     {"error": "Bo'sh JSON Yuborildi"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            if not serializer.is_valid():
-                logger.warning(f"Invalid data: {serializer.errors}")
+
+            file_url = request.data.get('file_url')
+            bubbles = request.data.get('bubbles')
+
+            if not file_url or not bubbles:
+                logger.warning("Invalid data: missing file_url or bubbles")
                 return Response(
-                    {"error": "Invalid data", "details": serializer.errors},
+                    {"error": "Invalid data", "details": "missing file_url or bubbles"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            logger.info("Data validated")
-
-            # JSON'dagi s3url va bubbles ma'lumotlarini olish
-            s3_url = serializer.validated_data.get('file_url')
-            bubbles = serializer.validated_data.get('bubbles')
-            logger.info(f"s3_url: {s3_url}, bubbles: {bubbles}")
+            logger.info(f"Data validated: file_url={file_url}, bubbles={bubbles}")
 
             # Telefon raqami va IDni aniqlash
             phone_number_coordinates = load_coordinates_from_json(PHONE_NUMBER_PATH)
@@ -78,7 +76,7 @@ class ProcessImageView(APIView):
             # Natijani saqlash
             with transaction.atomic():
                 processed_test = ProcessedTest.objects.create(
-                    file_url=s3_url,
+                    file_url=file_url,
                     student_id=student_id,
                     phone_number=phone_number
                 )
@@ -94,7 +92,7 @@ class ProcessImageView(APIView):
             # Javob qaytarish
             response = {
                 "message": "Ma'lumotlar muvaffaqiyatli saqlandi.",
-                "file_url": s3_url,
+                "file_url": file_url,
                 "student_id": student_id,
                 "phone_number": phone_number,
                 "answers": marked_answers
