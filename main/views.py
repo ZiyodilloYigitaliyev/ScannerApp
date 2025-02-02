@@ -52,7 +52,7 @@ class ProcessImageView(APIView):
             # Natijani saqlash
             with transaction.atomic():
                 processed_test = ProcessedTest.objects.create(
-                    file=s3_url,
+                    file_url=s3_url,
                     student_id=student_id,
                     phone_number=phone_number
                 )
