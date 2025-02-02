@@ -9,6 +9,7 @@ from .serializers import ProcessedTestSerializer
 from .models import ProcessedTest, ProcessedTestResult
 from rest_framework.permissions import AllowAny
 import logging
+import uuid
 
 logger = logging.getLogger(__name__)
 
