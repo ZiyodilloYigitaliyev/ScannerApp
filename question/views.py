@@ -344,14 +344,14 @@ class GenerateRandomQuestionsView(APIView):
 
 
     @staticmethod
-    def update_list_id(request_data):
+    def update_list_id():
         try:
             response = requests.get("https://backup-questions-e95023d8185c.herokuapp.com/backup")
             if response.status_code == 200:
                 try:
                     data = response.json()
-                    if isinstance(data, list):
-                        last_list_id = max(data) if data else 100000
+                    if isinstance(data, dict) and "list_id" in data:
+                        last_list_id = data["list_id"]
                         return last_list_id + 1
                     else:
                         print(f"Unexpected response format: {data}")
