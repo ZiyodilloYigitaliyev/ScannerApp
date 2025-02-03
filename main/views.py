@@ -1,22 +1,22 @@
 import os
-import json
+import csv
 import traceback
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import transaction
-from .serializers import ProcessedTestSerializer
 from .models import ProcessedTest, ProcessedTestResult
 from rest_framework.permissions import AllowAny
 import logging
 import uuid
+import json
 
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.json')
-ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/id.json')
-PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/number_id.json')
+COORDINATES_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.csv')
+ID_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.csv')
+PHONE_NUMBER_PATH = os.path.join(BASE_DIR, 'app/coordinates/coordinates.csv')
 
 def extract_from_coordinates(bubbles, coordinates_dict):
     """Koordinatalarni tekshirish va log qilishni kuchaytiramiz"""
@@ -40,25 +40,28 @@ def extract_from_coordinates(bubbles, coordinates_dict):
             logger.debug("Tekshirilayotgan koordinata [%d/%d]: %s", idx, len(coord_list), coord)
             if coord in bubbles:
                 logger.info("Topildi: %s - %s", key, coord)
-                return {key: coord}  # JSON strukturasiga mos qaytarish
+                return {key: coord}
 
     logger.warning("Hech qanday moslik topilmadi!")
     return None
 
-def load_coordinates_from_json(json_path):
-    """JSON fayllarini yuklashda loglarni to'liqroq qilish"""
-    logger.info("➤ JSON yuklash boshlandi: %s", json_path)
+def load_coordinates_from_csv(csv_path):
+    """CSV fayllarini yuklashda loglarni to'liqroq qilish"""
+    logger.info("➤ CSV yuklash boshlandi: %s", csv_path)
+    data = {}
     try:
-        with open(json_path, 'r') as file:
-            data = json.load(file)
-            logger.info("✓ JSON muvaffaqiyatli yuklandi. Elementlar soni: %d", len(data))
+        with open(csv_path, 'r') as file:
+            reader = csv.reader(file)
+            headers = next(reader)
+            for row in reader:
+                key = row[0]
+                coordinates = [(int(row[i]), int(row[i+1])) for i in range(1, len(row), 2)]
+                data[key] = coordinates
+            logger.info("✓ CSV muvaffaqiyatli yuklandi. Elementlar soni: %d", len(data))
             logger.debug("Namuna ma'lumot: %s", str(data)[:100])
             return data
     except FileNotFoundError:
-        logger.critical("⚠️ File topilmadi: %s", json_path, exc_info=True)
-        raise
-    except json.JSONDecodeError as e:
-        logger.critical("⚠️ Noto'g'ri JSON formati: %s | Xato: %s", json_path, str(e), exc_info=True)
+        logger.critical("⚠️ File topilmadi: %s", csv_path, exc_info=True)
         raise
     except Exception as e:
         logger.critical("⚠️ Noma'lum xato: %s", str(e), exc_info=True)
@@ -96,13 +99,13 @@ class ProcessImageView(APIView):
 
             # Telefon raqamini qidirish
             logger.info("⎇ Telefon raqamini qidirish...")
-            phone_coords = load_coordinates_from_json(PHONE_NUMBER_PATH)
+            phone_coords = load_coordinates_from_csv(PHONE_NUMBER_PATH)
             phone_number = extract_from_coordinates(bubbles, phone_coords)
             logger.info("☎ Telefon raqam natijasi: %s", phone_number or "Topilmadi")
 
             # Student ID qidirish
             logger.info("⎇ Student ID qidirish...")
-            student_coords = load_coordinates_from_json(ID_PATH)
+            student_coords = load_coordinates_from_csv(ID_PATH)
             student_id = extract_from_coordinates(bubbles, student_coords)
             logger.info("🆔 Student ID natijasi: %s", student_id or "Topilmadi")
 
@@ -115,7 +118,7 @@ class ProcessImageView(APIView):
 
             # Javoblarni qidirish
             logger.info("⎇ Test javoblarini qidirish...")
-            question_coords = load_coordinates_from_json(COORDINATES_PATH)
+            question_coords = load_coordinates_from_csv(COORDINATES_PATH)
             marked_answers = extract_from_coordinates(bubbles, question_coords)
             logger.info("📝 Javoblar natijasi: %s", 
                        json.dumps(marked_answers, indent=2) if marked_answers else "Javoblar topilmadi")
