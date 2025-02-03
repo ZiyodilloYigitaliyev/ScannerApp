@@ -170,7 +170,6 @@ class DeleteAllQuestionsView(APIView):
 
 class GenerateRandomQuestionsView(APIView):
     permission_classes = [AllowAny]
-
     def get(self, request):
         try:
             list_id = request.query_params.get('list_id', None)
@@ -256,9 +255,9 @@ class GenerateRandomQuestionsView(APIView):
                 request_data = request.data
 
             questions_num = request_data.get("num", {})
-            # Agar num bo'limida list_id mavjud bo'lsa, uning qiymatiga 1 qo'shamiz; aks holda 100000 dan boshlaymiz.
-            if "list_id" in questions_num:
-                updated_list_id = questions_num.get("list_id") + 1
+
+            if "list_id" in questions_num and questions_num["list_id"] is not None:
+                updated_list_id = questions_num["list_id"] + 1
             else:
                 updated_list_id = 100000
 
