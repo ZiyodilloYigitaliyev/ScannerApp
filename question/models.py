@@ -1,5 +1,4 @@
 from django.db import models
-from django.contrib.postgres.fields import ArrayField
 
 class QuestionList(models.Model):
     list_id = models.IntegerField(default=100000)
