@@ -98,15 +98,17 @@ class HTMLFromZipView(APIView):
                 question_counter += 1
                 current_question = {
                     "text": str(tag),
-                    "options": [],
+                    "options": "",
                     "true_answer": None,
                     "category": category,
                     "subject": subject
                 }
 
-            # Faqat katta harfda boshlanuvchi "A)", "B)", "C)", "D)" variantlarni olish
+            # Variantlarni yig‘ish (faqat "A)", "B)", "C)", "D)" katta harfda boshlangan variantlar)
             elif re.match(r'^[A-D]\)', text) and current_question:
-                current_question["options"].append(text)
+                if current_question["options"]:
+                    current_question["options"] += " "  # Variantlar orasini bo‘sh joy bilan ajratish
+                current_question["options"] += text
 
         if current_question:
             questions.append(current_question)
