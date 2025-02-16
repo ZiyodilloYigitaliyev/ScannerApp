@@ -90,23 +90,28 @@ class HTMLFromZipView(APIView):
             if not text:
                 continue
 
+            # Yangi savolni aniqlash
             if re.match(r'^\d+\.', text):
                 if current_question:
                     questions.append(current_question)
+
                 question_counter += 1
                 current_question = {
-                        "text": str(tag),
-                        "options": "",
-                        "true_answer": None,
-                        "category": category,
-                        "subject": subject
-                    }
+                    "text": str(tag),
+                    "options": [],
+                    "true_answer": None,
+                    "category": category,
+                    "subject": subject
+                }
+
+            # Faqat katta harfda boshlanuvchi "A)", "B)", "C)", "D)" variantlarni olish
             elif re.match(r'^[A-D]\)', text) and current_question:
-                current_question["options"] += str(tag)
+                current_question["options"].append(text)
 
         if current_question:
             questions.append(current_question)
 
+        # To‘g‘ri javoblarni joylashtirish
         for i, question in enumerate(questions):
             if i < len(key_answers):
                 question["true_answer"] = key_answers[i]
