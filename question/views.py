@@ -46,9 +46,15 @@ class HTMLFromZipView(APIView):
         if not zip_file:
             return Response({"error": "ZIP fayl topilmadi"}, status=400)
 
-        category, subject = request.data.get('category'), request.data.get('subject')
-        if not category or not subject:
-            return Response({"error": "Category va Subject majburiy maydonlardir."}, status=400)
+        category = request.data.get('category')
+        subject = request.data.get('subject')
+        school = request.data.get('school')
+
+        if not category or not subject or not school:
+            return Response({"error": "Category, Subject va School majburiy maydonlardir."}, status=400)
+        
+        if not isinstance(school, str):
+            return Response({"error": "School maydoni faqat string formatida bo‘lishi kerak."}, status=400)
 
         with zipfile.ZipFile(zip_file, 'r') as z:
             html_file, images = None, {}
@@ -63,6 +69,7 @@ class HTMLFromZipView(APIView):
 
         self.process_html_task(html_file, images, category, subject)
         return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
+
 
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'lxml')
