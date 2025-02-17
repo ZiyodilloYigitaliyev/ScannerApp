@@ -46,15 +46,9 @@ class HTMLFromZipView(APIView):
         if not zip_file:
             return Response({"error": "ZIP fayl topilmadi"}, status=400)
 
-        category = request.data.get('category')
-        subject = request.data.get('subject')
-        school = request.data.get('school')
-
-        if not category or not subject or not school:
-            return Response({"error": "Category, Subject va School majburiy maydonlardir."}, status=400)
-        
-        if not isinstance(school, str):
-            return Response({"error": "School maydoni faqat string formatida bo‘lishi kerak."}, status=400)
+        category, subject = request.data.get('category'), request.data.get('subject')
+        if not category or not subject:
+            return Response({"error": "Category va Subject majburiy maydonlardir."}, status=400)
 
         with zipfile.ZipFile(zip_file, 'r') as z:
             html_file, images = None, {}
@@ -69,7 +63,6 @@ class HTMLFromZipView(APIView):
 
         self.process_html_task(html_file, images, category, subject)
         return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
-
 
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'lxml')
@@ -255,7 +248,6 @@ class GenerateRandomQuestionsView(APIView):
 
     def post(self, request):
         try:
-            # Agar yuborilgan ma'lumot ro'yxat shaklida bo'lsa, birinchi elementni olamiz
             if isinstance(request.data, list):
                 request_data = request.data[0]
             else:
@@ -263,12 +255,16 @@ class GenerateRandomQuestionsView(APIView):
 
             questions_num = request_data.get("num", {})
 
+            # Majburiy school maydonini tekshirish
+            school = questions_num.get("school")
+            if not school or not isinstance(school, str):
+                return Response({"error": "School majburiy maydon va string formatida bo‘lishi kerak."}, status=status.HTTP_400_BAD_REQUEST)
+
             if "list_id" in questions_num and questions_num["list_id"] is not None:
                 updated_list_id = questions_num["list_id"] + 1
             else:
                 updated_list_id = 100000
 
-            # Qayta takrorlanmasligini tekshirish: agar hozirgi updated_list_id bazada mavjud bo'lsa, oshirib boramiz.
             while QuestionList.objects.filter(list_id=updated_list_id).exists():
                 updated_list_id += 1
 
@@ -286,9 +282,7 @@ class GenerateRandomQuestionsView(APIView):
 
             final_lists = []
 
-            # Har bir yangi list uchun: (agar additional_value bir nechta bo'lsa, har biri uchun alohida list yaratiladi)
             for _ in range(additional_value):
-                # Shu yerda updated_list_id ga nisbatan yagona list_id olinadi
                 while QuestionList.objects.filter(list_id=updated_list_id).exists():
                     updated_list_id += 1
                 list_id = updated_list_id
@@ -312,12 +306,13 @@ class GenerateRandomQuestionsView(APIView):
                     "list_id": list_id,
                     "questions": final_questions,
                     "question_class": question_class,
+                    "school": school,
                 })
 
                 try:
                     with transaction.atomic():
                         question_list = QuestionList.objects.create(
-                            list_id=list_id, question_class=question_class
+                            list_id=list_id, question_class=question_class, school=school
                         )
                         for question in final_questions:
                             Question.objects.create(
@@ -336,7 +331,6 @@ class GenerateRandomQuestionsView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-                # Keyingi list uchun updated_list_id ni 1 ga oshiramiz
                 updated_list_id += 1
 
             return Response(
@@ -348,6 +342,7 @@ class GenerateRandomQuestionsView(APIView):
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
 
     def delete(self, request, *args, **kwargs):
         try:
