@@ -24,78 +24,96 @@ logger = logging.getLogger(__name__)
 
 class HTMLFromZipView(APIView):
     permission_classes = [AllowAny]
+
     def get(self, request, *args, **kwargs):
-        questions = list(Zip.objects.values("text", "options", "true_answer", "category", "subject"))
+        questions = Zip.objects.values("text", "options", "true_answer", "category", "subject")
         bucket_url = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/'
+
+        result = []
         for question in questions:
             soup = BeautifulSoup(question["text"], 'html.parser')
             for img_tag in soup.find_all('img'):
-                if img_tag.get('src', '').startswith('images/'):
-                    img_tag['src'] = f'{bucket_url}{img_tag["src"]}'
+                img_src = img_tag.get('src')
+                if img_src and img_src.startswith('images/'):
+                    img_tag['src'] = f'{bucket_url}{img_src}'
             question["text"] = str(soup)
-        return Response(questions, status=200)
+            result.append(question)
+
+        return Response(result, status=200)
+
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get('file')
         if not zip_file:
             return Response({"error": "ZIP fayl topilmadi"}, status=400)
+
         category, subject = request.data.get('category'), request.data.get('subject')
-        if not all([category, subject]):
+        if not category or not subject:
             return Response({"error": "Category va Subject majburiy maydonlardir."}, status=400)
+
         with zipfile.ZipFile(zip_file, 'r') as z:
-            html_content, images = self.extract_content(z)
-            if not html_content:
-                return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
-        self.process_html_task(html_content, images, category, subject)
+            html_file, images = None, {}
+            for file_name in z.namelist():
+                if file_name.endswith('.html'):
+                    html_file = z.read(file_name).decode('utf-8')
+                elif file_name.startswith('images/'):
+                    images[file_name] = z.read(file_name)
+
+        if not html_file:
+            return Response({"error": "HTML fayl ZIP ichida topilmadi"}, status=400)
+
+        self.process_html_task(html_file, images, category, subject)
         return Response({"message": "Savollarni Yuklash Jarayoni Tugatildi"}, status=201)
-    def extract_content(self, z):
-        html_content = None
-        images = {}
-        for file_name in z.namelist():
-            if file_name.endswith('.html'):
-                html_content = z.read(file_name).decode('utf-8')
-            elif file_name.startswith('images/'):
-                images[file_name] = z.read(file_name)
-        return html_content, images
+
     def process_html_task(self, html_file, images, category, subject):
         soup = BeautifulSoup(html_file, 'lxml')
         image_urls = self.upload_images_concurrently(images)
+
         for img_tag in soup.find_all('img'):
             img_src = img_tag.get('src')
             if img_src in image_urls:
                 img_tag['src'] = image_urls[img_src]
             else:
                 img_tag.decompose()
-        key_answers = self.extract_key_answers(soup)
-        questions = self.parse_questions(soup, category, subject, key_answers)
-        Zip.objects.bulk_create([Zip(**q) for q in questions])
-        return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
-    def extract_key_answers(self, soup):
+
+        key_answers = []
         for p_tag in soup.find_all('p'):
-            text = p_tag.get_text(strip=True).upper()
-            if "KEY" in text:
-                return [match[1] for match in sorted(re.findall(r'(\d+)-([A-D])', text), key=lambda x: int(x[0]))]
-        return []
-    def parse_questions(self, soup, category, subject, key_answers):
-        questions = []
+            text = p_tag.get_text(strip=True)
+            if "KEY" in text.upper():
+                key_answers = [match[1] for match in sorted(re.findall(r'(\d+)-([A-D])', text), key=lambda x: int(x[0]))]
+                break
+
+        questions, current_question = [], None
+        question_counter = 0
+
         for tag in soup.find_all(['p', 'div']):
             text = tag.get_text(strip=True)
             if not text:
                 continue
+
             if re.match(r'^\d+\.', text):
-                questions.append({
-                    "text": str(tag),
-                    "options": "",
-                    "true_answer": None,
-                    "category": category,
-                    "subject": subject
-                })
-            elif questions and re.match(r'^[A-D]\)', text):
-                questions[-1]["options"] += (" " if questions[-1]["options"] else "") + text
-        # Assign true answers
+                if current_question:
+                    questions.append(current_question)
+                question_counter += 1
+                current_question = {
+                        "text": str(tag),
+                        "options": "",
+                        "true_answer": None,
+                        "category": category,
+                        "subject": subject
+                    }
+            elif re.match(r'^[A-D]\)', text) and current_question:
+                current_question["options"] += str(tag)
+
+        if current_question:
+            questions.append(current_question)
+
         for i, question in enumerate(questions):
             if i < len(key_answers):
                 question["true_answer"] = key_answers[i]
-        return questions
+
+        Zip.objects.bulk_create([Zip(**q) for q in questions])
+
+        return f"{len(questions)} ta savol muvaffaqiyatli qayta ishlangan!"
 
     def upload_images_concurrently(self, images):
         with ThreadPoolExecutor() as executor:
