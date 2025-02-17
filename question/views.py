@@ -230,6 +230,7 @@ class GenerateRandomQuestionsView(APIView):
                 ]
                 list_data = {
                     "list_id": question_list.list_id,
+                    "school": question_list.school,
                     "question_class": question_list.question_class,
                     "created_at": question_list.created_at,
                     "questions": final_questions,
