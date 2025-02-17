@@ -3,6 +3,7 @@ from django.db import models
 class QuestionList(models.Model):
     list_id = models.IntegerField(default=100000)
     question_class = models.CharField(max_length=255, null=True, blank=True)
+    school = models.CharField(max_length=255, null=False, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     
     def int(self):
