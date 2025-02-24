@@ -78,7 +78,7 @@ class HTMLFromZipView(APIView):
         key_answers = []
         for p_tag in soup.find_all('p'):
             text = p_tag.get_text(strip=True)
-            if "KEY" in text.upper():
+            if "KEY:" in text.upper():
                 key_answers = [match[1] for match in sorted(re.findall(r'(\d+)-([A-D])', text), key=lambda x: int(x[0]))]
                 break
 
