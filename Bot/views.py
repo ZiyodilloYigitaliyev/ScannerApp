@@ -7,6 +7,8 @@ from .serializers import BotUserSerializer
 from rest_framework import status
 from .models import ChannelStats
 from .serializers import ChannelStatsSerializer
+from rest_framework import viewsets
+from rest_framework.decorators import action
 
 class CheckUserAPIView(APIView):
     permission_classes = [AllowAny]
@@ -72,3 +74,18 @@ class ChannelStatsView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class BotUserViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    list: hamma userlarni qaytaradi
+    retrieve: bitta userni qaytaradi (pk bo‘yicha)
+    count: /botusers/count/ orqali umumiy userlar sonini qaytaradi
+    """
+    queryset = BotUser.objects.all()
+    serializer_class = BotUserSerializer
+
+    @action(detail=False, methods=['get'])
+    def count(self, request):
+        total = self.get_queryset().count()
+        return Response({'count': total})

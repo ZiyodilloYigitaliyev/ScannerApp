@@ -13,3 +13,5 @@ class ChannelStatsSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChannelStats
         fields = "__all__"
+
+
