@@ -9,6 +9,8 @@ from .models import ChannelStats
 from .serializers import ChannelStatsSerializer
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from django.http import JsonResponse
+
 
 class CheckUserAPIView(APIView):
     permission_classes = [AllowAny]
@@ -89,3 +91,8 @@ class BotUserViewSet(viewsets.ReadOnlyModelViewSet):
     def count(self, request):
         total = self.get_queryset().count()
         return Response({'count': total})
+    
+
+def get_all_user_ids(request):
+    user_ids = list(BotUser.objects.values_list('user_id', flat=True))
+    return JsonResponse(user_ids, safe=False)    
