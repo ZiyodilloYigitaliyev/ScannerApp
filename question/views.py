@@ -27,7 +27,7 @@ class HTMLFromZipView(APIView):
 
     def get(self, request, *args, **kwargs):
         questions = Zip.objects.values("text", "options", "true_answer", "category", "subject")
-        bucket_url = f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/'
+        bucket_url = f'https://{settings.AWS_BUCKET_NAME}.s3.amazonaws.com/'
 
         result = []
         for question in questions:
@@ -123,10 +123,10 @@ class HTMLFromZipView(APIView):
     def upload_image_to_s3(self, image_name, image_data):
         s3_client = boto3.client(
             's3',
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+            aws_access_key_id=settings.AWS_ACCESS_KEY,
+            aws_secret_access_key=settings.AWS_SECRET_KEY
         )
-        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+        bucket_name = settings.AWS_BUCKET_NAME
         file_name, file_extension = os.path.splitext(image_name)
         unique_name = f"images/{uuid.uuid4().hex}{file_extension}"
 
